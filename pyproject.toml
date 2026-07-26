@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lvk-paluworld-server-manager"
+version = "0.1.0"
+description = "Simplified Python Tkinter-based GUI application scaffold"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "LVK" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "ruff>=0.6.0", "mypy>=1.10.0"]
+
+[project.scripts]
+lvk-paluworld-server-manager = "lvk_paluworld_server_manager.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

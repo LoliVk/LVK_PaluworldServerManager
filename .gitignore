@@ -1,0 +1,44 @@
+# Python 編譯/快取
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 打包/發布
+*.egg-info/
+dist/
+build/
+*.egg
+wheels/
+sdist/
+
+# 虛擬環境
+.venv/
+venv/
+env/
+ENV/
+
+# 測試/覆蓋率
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+
+# 環境變數/機密
+.env
+.env.*
+
+# IDE / 編輯器
+.vscode/
+.idea/
+*.swp
+
+# OS 產生檔案
+.DS_Store
+Thumbs.db
+
+# 型別檢查快取
+.pyright/
