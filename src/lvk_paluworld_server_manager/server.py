@@ -15,8 +15,16 @@ has no GUI dependencies so it can be unit tested by mocking
 
 from __future__ import annotations
 
+import configparser
+import ctypes
+import os
+import platform
+import socket
 import subprocess
-from dataclasses import dataclass
+import sys
+import urllib.request
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Final
 
 #: Path to the PalServer installation inside the WSL filesystem.
@@ -76,6 +84,7 @@ def start_server_background() -> subprocess.Popen[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
         bufsize=1,
     )
 
@@ -93,7 +102,7 @@ def stop_server() -> subprocess.CompletedProcess[str]:
         "-Command",
         f'wsl bash -c "pkill -f {STOP_PROCESS_PATTERN}"',
     ]
-    return subprocess.run(args, capture_output=True, text=True, check=False)
+    return subprocess.run(args, capture_output=True, text=True, encoding="utf-8", check=False)
 
 
 @dataclass(frozen=True)
@@ -129,6 +138,7 @@ def check_wsl_available() -> bool:
             ["wsl.exe", "--status"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=15,
         )
@@ -139,6 +149,7 @@ def check_wsl_available() -> bool:
             ["wsl.exe", "-l", "-q"],
             capture_output=True,
             text=True,
+            encoding="utf-16",  #　wsl.exe -l -q 輸出是 UTF-16
             check=False,
             timeout=15,
         )
@@ -159,6 +170,7 @@ def _run_wsl_bash_check(bash_command: str) -> bool:
             ["wsl.exe", "bash", "-c", bash_command],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=15,
         )
@@ -179,6 +191,60 @@ def check_palserver_installed() -> bool:
     return _run_wsl_bash_check(f"test -x {PALSERVER_PATH}/PalServer.sh")
 
 
+def get_wsl_ip_address(distro: str = "Ubuntu") -> str | None:
+    """Return the IP address of a running WSL distribution.
+
+    Executes ``wsl -d <distro> hostname -I`` and returns the first IP address
+    reported.  Returns ``None`` if the command fails, times out, or produces
+    no output.
+
+    Args:
+        distro: The WSL distribution name to query (default ``"Ubuntu"``).
+
+    Returns:
+        The first IP address as a string, or ``None`` on any error.
+    """
+    try:
+        result = subprocess.run(
+            ["wsl.exe", "-d", distro, "hostname", "-I"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            return None
+        parts = result.stdout.strip().split()
+        return parts[0] if parts else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def get_windows_host_ip_address() -> str | None:
+    """Return the Windows host LAN IP address.
+
+    This is the address that other devices on the same network should use
+    to connect to the host when WSL is running in Mirrored mode.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return None
+
+
+def get_public_ip_address(timeout: int = 10) -> str | None:
+    """Return the public IPv4 address of the local machine, if available."""
+    try:
+        with urllib.request.urlopen("https://api.ipify.org", timeout=timeout) as response:
+            ip = response.read().decode("utf-8").strip()
+            return ip if ip else None
+    except Exception:
+        return None
+
+
 def check_environment() -> EnvironmentCheckResult:
     """Check that WSL, SteamCMD and the Palworld server are all available."""
     wsl_available = check_wsl_available()
@@ -193,4 +259,271 @@ def check_environment() -> EnvironmentCheckResult:
         wsl_available=True,
         steamcmd_installed=check_steamcmd_installed(),
         palserver_installed=check_palserver_installed(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Network setup — WSL networking mode & Windows Firewall
+# ---------------------------------------------------------------------------
+
+#: Windows Build Number for Windows 11 22H2 (first release with WSL Mirrored
+#: networking mode support).
+_WIN11_22H2_BUILD: Final[int] = 22621
+
+#: Name used for the Windows Firewall inbound rule that allows Palworld traffic.
+FIREWALL_RULE_NAME: Final[str] = "Palworld UDP 8211"
+
+#: Palworld default game / server port.
+PALWORLD_PORT: Final[int] = 8211
+
+#: Path to the user-level WSL configuration file.
+_WSLCONFIG_PATH: Final[Path] = Path.home() / ".wslconfig"
+
+
+def detect_windows_build() -> int:
+    """Return the current Windows build number (e.g. 22621 for Win 11 22H2).
+
+    Falls back to 0 on non-Windows platforms or when the registry is
+    unavailable, so all ``>= _WIN11_22H2_BUILD`` comparisons safely return
+    ``False``.
+    """
+    if sys.platform != "win32":
+        return 0
+    try:
+        import winreg  # only available on Windows
+
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+        )
+        build, _ = winreg.QueryValueEx(key, "CurrentBuildNumber")
+        winreg.CloseKey(key)
+        return int(build)
+    except Exception:  # noqa: BLE001
+        try:
+            return int(platform.version().split(".")[-1])
+        except Exception:  # noqa: BLE001
+            return 0
+
+
+def is_mirrored_mode_supported() -> bool:
+    """Return ``True`` if the OS is Windows 11 22H2 or later."""
+    return detect_windows_build() >= _WIN11_22H2_BUILD
+
+
+def read_wslconfig() -> configparser.ConfigParser:
+    """Parse ``~/.wslconfig`` and return a :class:`configparser.ConfigParser`.
+
+    If the file does not exist an empty parser is returned so callers can
+    treat it uniformly via ``parser.get(..., fallback=...)``.
+    """
+    parser = configparser.ConfigParser()
+    if _WSLCONFIG_PATH.exists():
+        parser.read(_WSLCONFIG_PATH, encoding="utf-8")
+    return parser
+
+
+def is_mirrored_mode_enabled() -> bool:
+    """Return ``True`` if ``~/.wslconfig`` has ``networkingMode=mirrored``."""
+    parser = read_wslconfig()
+    value = parser.get("wsl2", "networkingMode", fallback="").strip().lower()
+    return value == "mirrored"
+
+
+def enable_mirrored_mode() -> None:
+    """Write ``networkingMode=mirrored`` to ``~/.wslconfig`` and restart WSL.
+
+    If the ``[wsl2]`` section already exists it is updated in place;
+    otherwise it is appended.  After writing, ``wsl.exe --shutdown`` is
+    executed so the new setting takes effect immediately.
+
+    Raises:
+        OSError: If the file cannot be written.
+        subprocess.SubprocessError: If ``wsl.exe --shutdown`` fails.
+    """
+    parser = read_wslconfig()
+    if not parser.has_section("wsl2"):
+        parser.add_section("wsl2")
+    parser.set("wsl2", "networkingMode", "mirrored")
+
+    with _WSLCONFIG_PATH.open("w", encoding="utf-8") as fh:
+        parser.write(fh)
+
+    subprocess.run(
+        ["wsl.exe", "--shutdown"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+        timeout=30,
+    )
+
+
+def is_admin() -> bool:
+    """Return ``True`` if the current process has Windows administrator rights."""
+    if sys.platform != "win32":
+        return False
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def restart_as_admin() -> None:
+    """Re-launch this process with administrator privileges via UAC.
+
+    This function does **not** return; the calling code should exit after
+    invoking it so the original (non-elevated) process terminates cleanly.
+    """
+    script = sys.argv[0]
+    params = " ".join(sys.argv[1:])
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, f'"{script}" {params}', None, 1
+    )
+
+
+def check_firewall_rule(port: int = PALWORLD_PORT) -> bool:
+    """Return ``True`` if the Palworld inbound firewall rule already exists.
+
+    Queries ``netsh advfirewall firewall show rule`` by name.  A non-zero
+    exit code means the rule is absent.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "netsh",
+                "advfirewall",
+                "firewall",
+                "show",
+                "rule",
+                f"name={FIREWALL_RULE_NAME}",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="cp950",  # netsh 輸出為 cp950
+            errors="replace",  # 萬一有無法解碼的字元也不會崩潰
+            check=False,
+            timeout=15,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def add_firewall_rule(port: int = PALWORLD_PORT) -> bool:
+    """Add a Windows Firewall inbound rule allowing UDP traffic on *port*.
+
+    Requires administrator privileges.  Returns ``True`` if the rule was
+    added successfully, ``False`` otherwise.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "netsh",
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                f"name={FIREWALL_RULE_NAME}",
+                "protocol=UDP",
+                "dir=in",
+                f"localport={port}",
+                "action=allow",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="cp950",  # netsh 輸出為 cp950
+            errors="replace",  # 萬一有無法解碼的字元也不會崩潰
+            check=False,
+            timeout=15,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def check_socat_installed() -> bool:
+    """Return ``True`` if ``socat`` is available inside WSL."""
+    return _run_wsl_bash_check("command -v socat >/dev/null 2>&1")
+
+
+def start_socat_forward(
+    wsl_ip: str, port: int = PALWORLD_PORT
+) -> subprocess.Popen[bytes]:
+    """Start a ``socat`` UDP relay from the Windows host port to *wsl_ip*.
+
+    The relay is spawned inside WSL and runs in the background.  The returned
+    :class:`~subprocess.Popen` object can be used to terminate the relay when
+    the server is stopped.
+
+    Args:
+        wsl_ip: The WSL IP address returned by :func:`get_wsl_ip_address`.
+        port:   The UDP port to forward (default ``8211``).
+    """
+    bash_cmd = f"socat UDP4-LISTEN:{port},fork UDP4:{wsl_ip}:{port}"
+    args = ["wsl.exe", "bash", "-c", bash_cmd]
+    return subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
+@dataclass
+class NetworkSetupResult:
+    """Result of checking the WSL network and Windows Firewall configuration."""
+
+    mirrored_mode_supported: bool
+    """Whether the OS supports WSL Mirrored networking (Win 11 22H2+)."""
+
+    mirrored_mode_enabled: bool
+    """Whether ``networkingMode=mirrored`` is already set in ``~/.wslconfig``."""
+
+    firewall_rule_exists: bool
+    """Whether the Palworld UDP inbound firewall rule already exists."""
+
+    socat_installed: bool
+    """Whether ``socat`` is available inside WSL (only relevant in NAT mode)."""
+
+    is_admin: bool
+    """Whether the current process has administrator rights."""
+
+    @property
+    def needs_setup(self) -> bool:
+        """Return ``True`` if any network configuration action is required."""
+        return not self.firewall_rule_exists or (
+            self.mirrored_mode_supported and not self.mirrored_mode_enabled
+        )
+
+    @property
+    def pending_actions(self) -> list[str]:
+        """Human-readable list of actions that will be taken during setup."""
+        actions: list[str] = []
+        if self.mirrored_mode_supported and not self.mirrored_mode_enabled:
+            actions.append(
+                "在 ~/.wslconfig 中設定 networkingMode=mirrored（Mirrored 網路模式）"
+            )
+            actions.append("執行 wsl --shutdown 重啟 WSL 使設定生效")
+        elif not self.mirrored_mode_supported and not self.socat_installed:
+            actions.append(
+                "系統不支援 Mirrored Mode，且 WSL 中未偵測到 socat。\n"
+                "請在 WSL 中執行：sudo apt install socat"
+            )
+        if not self.firewall_rule_exists:
+            actions.append(
+                f'新增 Windows 防火牆輸入規則："{FIREWALL_RULE_NAME}"（UDP {PALWORLD_PORT}）'
+            )
+        return actions
+
+
+def check_network_setup() -> NetworkSetupResult:
+    """Inspect WSL networking mode and Windows Firewall state.
+
+    This is the single entry point the GUI calls to decide whether the
+    :class:`~lvk_paluworld_server_manager.gui.main_window.NetworkSetupDialog`
+    should be shown.
+    """
+    supported = is_mirrored_mode_supported()
+    return NetworkSetupResult(
+        mirrored_mode_supported=supported,
+        mirrored_mode_enabled=is_mirrored_mode_enabled(),
+        firewall_rule_exists=check_firewall_rule(),
+        socat_installed=check_socat_installed() if not supported else False,
+        is_admin=is_admin(),
     )

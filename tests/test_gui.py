@@ -143,14 +143,51 @@ def test_start_server_background_mode_dispatches_reader_thread(
         window._on_start_server()
 
         mock_start.assert_called_once()
-        mock_thread_cls.assert_called_once()
-        _, kwargs = mock_thread_cls.call_args
-        assert kwargs["target"] == window._read_output
-        assert kwargs["daemon"] is True
-        mock_thread_cls.return_value.start.assert_called_once()
+        # Two threads are created: one for output reading, one for IP lookup.
+        assert mock_thread_cls.call_count >= 1
+        first_call_kwargs = mock_thread_cls.call_args_list[0][1]
+        assert first_call_kwargs["target"] == window._read_output
+        assert first_call_kwargs["daemon"] is True
         assert str(window.start_server_button["state"]) == "disabled"
         assert str(window.stop_server_button["state"]) == "normal"
     finally:
         if window._poll_job is not None:
             window.after_cancel(window._poll_job)
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.server.get_wsl_ip_address")
+@patch("lvk_paluworld_server_manager.gui.main_window.server.start_server_visible")
+def test_start_server_fetches_and_displays_ip_address(
+    mock_start: MagicMock, mock_get_ip: MagicMock
+) -> None:
+    mock_get_ip.return_value = "172.20.16.1"
+    window = _make_window()
+
+    try:
+        window.mode_var.set("visible")
+        # Run _fetch_ip_address synchronously in the test thread
+        window._on_start_server()
+        if window._ip_poll_job is not None:
+            window.after_cancel(window._ip_poll_job)
+        window._fetch_ip_address()
+        window._poll_ip_queue()
+
+        assert "172.20.16.1" in window.ip_label["text"]
+        assert "8211" in window.ip_label["text"]
+    finally:
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.server.stop_server")
+def test_stop_server_clears_ip_label(mock_stop: MagicMock) -> None:
+    window = _make_window()
+
+    try:
+        window.ip_label.config(text="連線位址：172.20.16.1:8211")
+        window._set_running_state(True)
+        window._on_stop_server()
+
+        assert window.ip_label["text"] == ""
+    finally:
         window.destroy()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from lvk_paluworld_server_manager import server
@@ -171,3 +172,315 @@ def test_check_environment_ok_when_everything_available(
 
     assert result.ok is True
     assert result.missing == []
+
+
+# ---------------------------------------------------------------------------
+# get_wsl_ip_address
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_get_wsl_ip_address_returns_first_ip(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(0, "172.20.16.1 10.255.255.254 \n")
+
+    result = server.get_wsl_ip_address()
+
+    assert result == "172.20.16.1"
+    args, kwargs = mock_run.call_args
+    assert args[0] == ["wsl.exe", "-d", "Ubuntu", "hostname", "-I"]
+    assert kwargs["timeout"] == 15
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_get_wsl_ip_address_returns_none_when_command_fails(
+    mock_run: MagicMock,
+) -> None:
+    mock_run.return_value = _completed(1, "")
+
+    assert server.get_wsl_ip_address() is None
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_get_wsl_ip_address_returns_none_on_oserror(mock_run: MagicMock) -> None:
+    mock_run.side_effect = OSError("wsl.exe not found")
+
+    assert server.get_wsl_ip_address() is None
+
+
+@patch("lvk_paluworld_server_manager.server.socket.socket")
+def test_get_windows_host_ip_address_returns_local_ip(mock_socket: MagicMock) -> None:
+    mock_sock = MagicMock()
+    mock_sock.getsockname.return_value = ("192.168.0.123", 0)
+    mock_socket.return_value.__enter__.return_value = mock_sock
+
+    assert server.get_windows_host_ip_address() == "192.168.0.123"
+
+
+@patch("lvk_paluworld_server_manager.server.socket.socket")
+def test_get_windows_host_ip_address_returns_none_on_error(mock_socket: MagicMock) -> None:
+    mock_socket.side_effect = OSError("network unavailable")
+
+    assert server.get_windows_host_ip_address() is None
+
+
+@patch("lvk_paluworld_server_manager.server.urllib.request.urlopen")
+def test_get_public_ip_address_returns_ip(mock_urlopen: MagicMock) -> None:
+    mock_response = MagicMock()
+    mock_response.read.return_value = b"203.0.113.45"
+    mock_urlopen.return_value.__enter__.return_value = mock_response
+
+    assert server.get_public_ip_address() == "203.0.113.45"
+
+
+@patch("lvk_paluworld_server_manager.server.urllib.request.urlopen")
+def test_get_public_ip_address_returns_none_on_failure(mock_urlopen: MagicMock) -> None:
+    mock_urlopen.side_effect = Exception("timeout")
+
+    assert server.get_public_ip_address() is None
+
+
+# ---------------------------------------------------------------------------
+# detect_windows_build / is_mirrored_mode_supported
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.sys.platform", "win32")
+@patch("lvk_paluworld_server_manager.server.winreg", create=True)
+def test_detect_windows_build_reads_registry(mock_winreg: MagicMock) -> None:
+    import winreg  # imported only to verify the mock path works
+
+    mock_winreg.HKEY_LOCAL_MACHINE = 0
+    mock_winreg.OpenKey.return_value = MagicMock()
+    mock_winreg.QueryValueEx.return_value = ("22621", 1)
+    mock_winreg.CloseKey.return_value = None
+
+    # Patch the import inside the function via the module-level name
+    with patch.dict("sys.modules", {"winreg": mock_winreg}):
+        build = server.detect_windows_build()
+
+    assert isinstance(build, int)
+
+
+def test_is_mirrored_mode_supported_true_for_high_build() -> None:
+    with patch("lvk_paluworld_server_manager.server.detect_windows_build", return_value=22621):
+        assert server.is_mirrored_mode_supported() is True
+
+
+def test_is_mirrored_mode_supported_false_for_low_build() -> None:
+    with patch("lvk_paluworld_server_manager.server.detect_windows_build", return_value=19041):
+        assert server.is_mirrored_mode_supported() is False
+
+
+# ---------------------------------------------------------------------------
+# read_wslconfig / is_mirrored_mode_enabled
+# ---------------------------------------------------------------------------
+
+
+def test_is_mirrored_mode_enabled_true_when_set(tmp_path: "Path") -> None:
+    cfg = tmp_path / ".wslconfig"
+    cfg.write_text("[wsl2]\nnetworkingMode=mirrored\n", encoding="utf-8")
+
+    with patch("lvk_paluworld_server_manager.server._WSLCONFIG_PATH", cfg):
+        assert server.is_mirrored_mode_enabled() is True
+
+
+def test_is_mirrored_mode_enabled_false_when_nat(tmp_path: "Path") -> None:
+    cfg = tmp_path / ".wslconfig"
+    cfg.write_text("[wsl2]\nnetworkingMode=nat\n", encoding="utf-8")
+
+    with patch("lvk_paluworld_server_manager.server._WSLCONFIG_PATH", cfg):
+        assert server.is_mirrored_mode_enabled() is False
+
+
+def test_is_mirrored_mode_enabled_false_when_file_missing(tmp_path: "Path") -> None:
+    with patch(
+        "lvk_paluworld_server_manager.server._WSLCONFIG_PATH",
+        tmp_path / ".wslconfig",
+    ):
+        assert server.is_mirrored_mode_enabled() is False
+
+
+# ---------------------------------------------------------------------------
+# enable_mirrored_mode
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_enable_mirrored_mode_writes_wslconfig(
+    mock_run: MagicMock, tmp_path: "Path"
+) -> None:
+    cfg = tmp_path / ".wslconfig"
+    mock_run.return_value = _completed(0)
+
+    with patch("lvk_paluworld_server_manager.server._WSLCONFIG_PATH", cfg):
+        server.enable_mirrored_mode()
+
+    assert cfg.exists()
+    content = cfg.read_text(encoding="utf-8")
+    assert "networkingmode = mirrored" in content.lower()
+
+    # Verify wsl --shutdown was called
+    args, _ = mock_run.call_args
+    assert "wsl.exe" in args[0]
+    assert "--shutdown" in args[0]
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_enable_mirrored_mode_overwrites_existing_value(
+    mock_run: MagicMock, tmp_path: "Path"
+) -> None:
+    cfg = tmp_path / ".wslconfig"
+    cfg.write_text("[wsl2]\nnetworkingMode=nat\n", encoding="utf-8")
+    mock_run.return_value = _completed(0)
+
+    with patch("lvk_paluworld_server_manager.server._WSLCONFIG_PATH", cfg):
+        server.enable_mirrored_mode()
+
+    content = cfg.read_text(encoding="utf-8")
+    assert "nat" not in content.lower()
+    assert "networkingmode = mirrored" in content.lower()
+
+
+# ---------------------------------------------------------------------------
+# check_firewall_rule / add_firewall_rule
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_check_firewall_rule_true_when_rule_exists(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(0)
+    assert server.check_firewall_rule() is True
+    args, _ = mock_run.call_args
+    assert "netsh" in args[0]
+    assert server.FIREWALL_RULE_NAME in " ".join(args[0])
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_check_firewall_rule_false_when_rule_missing(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(1)
+    assert server.check_firewall_rule() is False
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_check_firewall_rule_false_on_oserror(mock_run: MagicMock) -> None:
+    mock_run.side_effect = OSError("netsh not found")
+    assert server.check_firewall_rule() is False
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_add_firewall_rule_returns_true_on_success(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(0)
+    assert server.add_firewall_rule() is True
+    args, _ = mock_run.call_args
+    joined = " ".join(args[0])
+    assert "netsh" in joined
+    assert "add" in joined
+    assert str(server.PALWORLD_PORT) in joined
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_add_firewall_rule_returns_false_on_failure(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(1)
+    assert server.add_firewall_rule() is False
+
+
+# ---------------------------------------------------------------------------
+# check_socat_installed
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server._run_wsl_bash_check")
+def test_check_socat_installed_true(mock_check: MagicMock) -> None:
+    mock_check.return_value = True
+    assert server.check_socat_installed() is True
+    mock_check.assert_called_once_with("command -v socat >/dev/null 2>&1")
+
+
+@patch("lvk_paluworld_server_manager.server._run_wsl_bash_check")
+def test_check_socat_installed_false(mock_check: MagicMock) -> None:
+    mock_check.return_value = False
+    assert server.check_socat_installed() is False
+
+
+# ---------------------------------------------------------------------------
+# NetworkSetupResult
+# ---------------------------------------------------------------------------
+
+
+def test_network_setup_result_needs_setup_when_no_firewall() -> None:
+    r = server.NetworkSetupResult(
+        mirrored_mode_supported=True,
+        mirrored_mode_enabled=True,
+        firewall_rule_exists=False,
+        socat_installed=False,
+        is_admin=True,
+    )
+    assert r.needs_setup is True
+    assert any("防火牆" in a for a in r.pending_actions)
+
+
+def test_network_setup_result_needs_setup_when_mirrored_not_enabled() -> None:
+    r = server.NetworkSetupResult(
+        mirrored_mode_supported=True,
+        mirrored_mode_enabled=False,
+        firewall_rule_exists=True,
+        socat_installed=False,
+        is_admin=True,
+    )
+    assert r.needs_setup is True
+    assert any("mirrored" in a.lower() or "networkingmode" in a.lower() for a in r.pending_actions)
+
+
+def test_network_setup_result_no_setup_needed_when_all_ok() -> None:
+    r = server.NetworkSetupResult(
+        mirrored_mode_supported=True,
+        mirrored_mode_enabled=True,
+        firewall_rule_exists=True,
+        socat_installed=False,
+        is_admin=True,
+    )
+    assert r.needs_setup is False
+    assert r.pending_actions == []
+
+
+def test_network_setup_result_socat_notice_when_unsupported_and_missing() -> None:
+    r = server.NetworkSetupResult(
+        mirrored_mode_supported=False,
+        mirrored_mode_enabled=False,
+        firewall_rule_exists=True,
+        socat_installed=False,
+        is_admin=True,
+    )
+    assert any("socat" in a.lower() for a in r.pending_actions)
+
+
+# ---------------------------------------------------------------------------
+# check_network_setup (integration-style, all helpers mocked)
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.is_admin")
+@patch("lvk_paluworld_server_manager.server.check_socat_installed")
+@patch("lvk_paluworld_server_manager.server.check_firewall_rule")
+@patch("lvk_paluworld_server_manager.server.is_mirrored_mode_enabled")
+@patch("lvk_paluworld_server_manager.server.is_mirrored_mode_supported")
+def test_check_network_setup_mirrored_supported_and_enabled(
+    mock_supported: MagicMock,
+    mock_enabled: MagicMock,
+    mock_fw: MagicMock,
+    mock_socat: MagicMock,
+    mock_admin: MagicMock,
+) -> None:
+    mock_supported.return_value = True
+    mock_enabled.return_value = True
+    mock_fw.return_value = True
+    mock_admin.return_value = True
+
+    result = server.check_network_setup()
+
+    assert result.mirrored_mode_supported is True
+    assert result.mirrored_mode_enabled is True
+    assert result.firewall_rule_exists is True
+    assert result.needs_setup is False
+    # socat check skipped when mirrored mode is supported
+    mock_socat.assert_not_called()
