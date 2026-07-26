@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import queue
+import subprocess
+import threading
 import tkinter as tk
+from tkinter import messagebox, scrolledtext
 
+from .. import server
 from ..config import AppConfig, create_app_message
+
+#: Sentinel placed on the output queue once the background process ends.
+_OUTPUT_DONE = object()
 
 
 class MainWindow(tk.Tk):
@@ -14,10 +22,14 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.config = config or AppConfig()
         self.title(self.config.title)
-        self.geometry("480x320")
+        self.geometry("480x520")
         self.resizable(False, False)
 
         self.configure(padx=24, pady=24)
+
+        self._process: subprocess.Popen[str] | None = None
+        self._output_queue: queue.Queue[object] = queue.Queue()
+        self._poll_job: str | None = None
 
         title_label = tk.Label(
             self,
@@ -37,14 +49,126 @@ class MainWindow(tk.Tk):
         )
         subtitle_label.pack(pady=(0, 16))
 
-        button_frame = tk.Frame(self)
-        button_frame.pack(pady=8)
+        self.mode_var = tk.StringVar(value="visible")
+        mode_frame = tk.Frame(self)
+        mode_frame.pack(pady=(8, 4))
 
-        start_button = tk.Button(button_frame, text="開始使用 / Start", width=18)
-        start_button.pack(side="left", padx=8)
+        tk.Radiobutton(
+            mode_frame,
+            text="顯示終端機視窗",
+            variable=self.mode_var,
+            value="visible",
+        ).pack(side="left", padx=4)
 
-        info_button = tk.Button(button_frame, text="關於 / About", width=18)
-        info_button.pack(side="left", padx=8)
+        tk.Radiobutton(
+            mode_frame,
+            text="背景執行",
+            variable=self.mode_var,
+            value="background",
+        ).pack(side="left", padx=4)
+
+        server_button_frame = tk.Frame(self)
+        server_button_frame.pack(pady=8)
+
+        self.start_server_button = tk.Button(
+            server_button_frame,
+            text="啟動伺服器 / Start Server",
+            width=20,
+            command=self._on_start_server,
+        )
+        self.start_server_button.pack(side="left", padx=8)
+
+        self.stop_server_button = tk.Button(
+            server_button_frame,
+            text="停止伺服器 / Stop Server",
+            width=20,
+            command=self._on_stop_server,
+            state="disabled",
+        )
+        self.stop_server_button.pack(side="left", padx=8)
+
+        self.output_text = scrolledtext.ScrolledText(
+            self,
+            width=52,
+            height=10,
+            state="disabled",
+            font=("Consolas", 9),
+        )
+        self.output_text.pack(pady=(8, 0))
+
+        self.after(100, self._perform_environment_check)
+
+    def _perform_environment_check(self) -> None:
+        """Verify WSL/SteamCMD/PalServer are ready, disabling start if not."""
+        result = server.check_environment()
+        if not result.ok:
+            missing = "\n".join(f"- {item}" for item in result.missing)
+            messagebox.showerror(
+                "缺少必要環境 / Missing Requirements",
+                f"以下必要環境未偵測到，無法啟動伺服器：\n{missing}",
+                parent=self,
+            )
+            self.start_server_button.config(state="disabled")
+
+    def _set_running_state(self, running: bool) -> None:
+        """Toggle the Start/Stop buttons to reflect the server state."""
+        self.start_server_button.config(state="disabled" if running else "normal")
+        self.stop_server_button.config(state="normal" if running else "disabled")
+
+    def _append_output(self, text: str) -> None:
+        """Append a line of text to the scrollable output box."""
+        self.output_text.config(state="normal")
+        self.output_text.insert(tk.END, text)
+        self.output_text.see(tk.END)
+        self.output_text.config(state="disabled")
+
+    def _on_start_server(self) -> None:
+        """Handle the "Start Server" button click."""
+        if self.mode_var.get() == "visible":
+            server.start_server_visible()
+            self._set_running_state(True)
+        else:
+            self._process = server.start_server_background()
+            self._set_running_state(True)
+            threading.Thread(target=self._read_output, daemon=True).start()
+            self._poll_job = self.after(100, self._poll_output_queue)
+
+    def _on_stop_server(self) -> None:
+        """Handle the "Stop Server" button click."""
+        server.stop_server()
+        self._set_running_state(False)
+
+    def _read_output(self) -> None:
+        """Read the background process' stdout line by line (worker thread)."""
+        process = self._process
+        if process is None or process.stdout is None:
+            self._output_queue.put(_OUTPUT_DONE)
+            return
+
+        for line in process.stdout:
+            self._output_queue.put(line)
+        self._output_queue.put(_OUTPUT_DONE)
+
+    def _poll_output_queue(self) -> None:
+        """Drain the output queue into the Text widget (main thread)."""
+        done = False
+        while True:
+            try:
+                item = self._output_queue.get_nowait()
+            except queue.Empty:
+                break
+
+            if item is _OUTPUT_DONE:
+                done = True
+                break
+
+            self._append_output(str(item))
+
+        if done:
+            self._poll_job = None
+            self._set_running_state(False)
+        else:
+            self._poll_job = self.after(100, self._poll_output_queue)
 
 
 def main() -> None:

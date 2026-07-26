@@ -42,3 +42,6 @@ Thumbs.db
 
 # 型別檢查快取
 .pyright/
+
+# 官方參考文件（僅本機參考,不進版控）
+docs/reference/
