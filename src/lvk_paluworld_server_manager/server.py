@@ -17,13 +17,12 @@ from __future__ import annotations
 
 import configparser
 import ctypes
-import os
 import platform
 import socket
 import subprocess
 import sys
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -85,6 +84,7 @@ def start_server_background() -> subprocess.Popen[str]:
         stderr=subprocess.STDOUT,
         text=True,
         encoding="utf-8",
+        errors="replace",  # 處理無法解碼的字元，避免崩潰
         bufsize=1,
     )
 
@@ -102,7 +102,9 @@ def stop_server() -> subprocess.CompletedProcess[str]:
         "-Command",
         f'wsl bash -c "pkill -f {STOP_PROCESS_PATTERN}"',
     ]
-    return subprocess.run(args, capture_output=True, text=True, encoding="utf-8", check=False)
+    return subprocess.run(
+        args, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
+    )
 
 
 @dataclass(frozen=True)
@@ -139,26 +141,44 @@ def check_wsl_available() -> bool:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",  # 處理無法解碼的字元
             check=False,
             timeout=15,
         )
         if status.returncode != 0:
             return False
 
+        # wsl.exe -l -q 輸出是 UTF-16，但有時沒有 BOM，所以用 bytes 模式處理
         distros = subprocess.run(
             ["wsl.exe", "-l", "-q"],
             capture_output=True,
-            text=True,
-            encoding="utf-16",  #　wsl.exe -l -q 輸出是 UTF-16
+            text=False,  # 使用 bytes 模式來手動處理編碼
             check=False,
             timeout=15,
         )
         if distros.returncode != 0:
             return False
 
-        # ``wsl.exe -l -q`` output is UTF-16 and often padded with NUL bytes
-        # when decoded as text; strip them before checking for content.
-        return bool(distros.stdout.replace("\x00", "").strip())
+        # 嘗試多種 UTF-16 解碼方式
+        output = None
+        try:
+            # 先嘗試 UTF-16-LE（小端序，Windows 常用）
+            output = distros.stdout.decode("utf-16-le")
+        except (UnicodeDecodeError, AttributeError):
+            try:
+                # 再嘗試帶 BOM 的 UTF-16
+                output = distros.stdout.decode("utf-16")
+            except (UnicodeDecodeError, AttributeError):
+                try:
+                    # 最後嘗試 UTF-8
+                    output = distros.stdout.decode("utf-8", errors="replace")
+                except (UnicodeDecodeError, AttributeError):
+                    return False
+
+        # 檢查是否成功解碼並移除 NUL 字元
+        if output is None:
+            return False
+        return bool(output.replace("\x00", "").strip())
     except (OSError, subprocess.TimeoutExpired):
         return False
 
@@ -171,6 +191,7 @@ def _run_wsl_bash_check(bash_command: str) -> bool:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",  # 處理無法解碼的字元
             check=False,
             timeout=15,
         )
@@ -210,6 +231,7 @@ def get_wsl_ip_address(distro: str = "Ubuntu") -> str | None:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",  # 處理無法解碼的字元
             check=False,
             timeout=15,
         )
@@ -354,6 +376,7 @@ def enable_mirrored_mode() -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",  # 處理無法解碼的字元
         check=False,
         timeout=30,
     )
@@ -442,6 +465,33 @@ def add_firewall_rule(port: int = PALWORLD_PORT) -> bool:
         return False
 
 
+def open_windows_firewall_settings() -> None:
+    """Open Windows Defender Firewall with Advanced Security.
+
+    Launches the Windows Firewall advanced settings control panel where
+    users can manually add inbound rules.  This is useful when the
+    application does not have administrator rights to add rules
+    automatically.
+    """
+    try:
+        subprocess.Popen(
+            ["wf.msc"],
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError:
+        # Fallback: try control panel firewall settings
+        try:
+            subprocess.Popen(
+                ["control", "firewall.cpl"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except OSError:
+            pass  # Silently fail if neither method works
+
+
 def check_socat_installed() -> bool:
     """Return ``True`` if ``socat`` is available inside WSL."""
     return _run_wsl_bash_check("command -v socat >/dev/null 2>&1")
@@ -526,4 +576,84 @@ def check_network_setup() -> NetworkSetupResult:
         firewall_rule_exists=check_firewall_rule(),
         socat_installed=check_socat_installed() if not supported else False,
         is_admin=is_admin(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic Information — Network connectivity testing & aggregated status
+# ---------------------------------------------------------------------------
+
+
+def test_external_connectivity(timeout: int = 5) -> bool:
+    """Test external network connectivity by attempting to reach known endpoints.
+
+    Tries multiple reliable endpoints to reduce false negatives from
+    individual service outages.
+
+    Args:
+        timeout: Maximum seconds to wait for each endpoint test.
+
+    Returns:
+        ``True`` if at least one endpoint is reachable, ``False`` otherwise.
+    """
+    endpoints = [
+        ("https://dns.google", "Google DNS"),
+        ("https://1.1.1.1", "Cloudflare DNS"),
+        ("https://www.cloudflare.com", "Cloudflare"),
+    ]
+
+    for url, _name in endpoints:
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as response:
+                if response.status == 200:
+                    return True
+        except Exception:  # noqa: BLE001
+            continue
+
+    return False
+
+
+@dataclass(frozen=True)
+class DiagnosticInfo:
+    """Comprehensive diagnostic information about the server environment."""
+
+    wsl_ip: str | None
+    """WSL distribution IP address, or None if unavailable."""
+
+    windows_ip: str | None
+    """Windows host LAN IP address, or None if unavailable."""
+
+    public_ip: str | None
+    """Public internet IP address, or None if unavailable."""
+
+    firewall_rule_exists: bool
+    """Whether the Palworld UDP firewall rule is configured."""
+
+    environment_check: EnvironmentCheckResult
+    """Status of WSL, SteamCMD, and PalServer installation."""
+
+    network_setup: NetworkSetupResult
+    """WSL networking mode and firewall configuration status."""
+
+    external_connectivity: bool
+    """Whether external internet connectivity is available."""
+
+
+def get_all_diagnostic_info() -> DiagnosticInfo:
+    """Gather all diagnostic information in a single function call.
+
+    This is the main entry point for the diagnostic dialog. It queries
+    IP addresses, environment status, network setup, and connectivity.
+
+    Returns:
+        A :class:`DiagnosticInfo` instance with all collected information.
+    """
+    return DiagnosticInfo(
+        wsl_ip=get_wsl_ip_address(),
+        windows_ip=get_windows_host_ip_address(),
+        public_ip=get_public_ip_address(),
+        firewall_rule_exists=check_firewall_rule(),
+        environment_check=check_environment(),
+        network_setup=check_network_setup(),
+        external_connectivity=test_external_connectivity(),
     )

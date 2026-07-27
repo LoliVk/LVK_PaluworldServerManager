@@ -166,11 +166,11 @@ def test_start_server_fetches_and_displays_ip_address(
 
     try:
         window.mode_var.set("visible")
-        # Run _fetch_ip_address synchronously in the test thread
+        # Run _fetch_connection_info synchronously in the test thread
         window._on_start_server()
         if window._ip_poll_job is not None:
             window.after_cancel(window._ip_poll_job)
-        window._fetch_ip_address()
+        window._fetch_connection_info()
         window._poll_ip_queue()
 
         assert "172.20.16.1" in window.ip_label["text"]

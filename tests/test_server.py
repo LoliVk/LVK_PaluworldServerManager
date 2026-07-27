@@ -484,3 +484,83 @@ def test_check_network_setup_mirrored_supported_and_enabled(
     assert result.needs_setup is False
     # socat check skipped when mirrored mode is supported
     mock_socat.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# test_external_connectivity
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.urllib.request.urlopen")
+def test_external_connectivity_true_when_any_endpoint_reachable(
+    mock_urlopen: MagicMock,
+) -> None:
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_urlopen.return_value.__enter__.return_value = mock_response
+
+    result = server.test_external_connectivity()
+    assert result is True
+
+
+@patch("lvk_paluworld_server_manager.server.urllib.request.urlopen")
+def test_external_connectivity_false_when_all_endpoints_fail(
+    mock_urlopen: MagicMock,
+) -> None:
+    mock_urlopen.side_effect = Exception("Network error")
+
+    result = server.test_external_connectivity()
+    assert result is False
+
+
+# ---------------------------------------------------------------------------
+# get_all_diagnostic_info
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.test_external_connectivity")
+@patch("lvk_paluworld_server_manager.server.check_network_setup")
+@patch("lvk_paluworld_server_manager.server.check_environment")
+@patch("lvk_paluworld_server_manager.server.check_firewall_rule")
+@patch("lvk_paluworld_server_manager.server.get_public_ip_address")
+@patch("lvk_paluworld_server_manager.server.get_windows_host_ip_address")
+@patch("lvk_paluworld_server_manager.server.get_wsl_ip_address")
+def test_get_all_diagnostic_info_collects_all_data(
+    mock_wsl_ip: MagicMock,
+    mock_windows_ip: MagicMock,
+    mock_public_ip: MagicMock,
+    mock_firewall: MagicMock,
+    mock_env: MagicMock,
+    mock_network: MagicMock,
+    mock_connectivity: MagicMock,
+) -> None:
+    mock_wsl_ip.return_value = "172.20.16.1"
+    mock_windows_ip.return_value = "192.168.1.100"
+    mock_public_ip.return_value = "203.0.113.42"
+    mock_firewall.return_value = True
+    mock_env.return_value = server.EnvironmentCheckResult(
+        wsl_available=True,
+        steamcmd_installed=True,
+        palserver_installed=True,
+    )
+    mock_network.return_value = server.NetworkSetupResult(
+        mirrored_mode_supported=True,
+        mirrored_mode_enabled=True,
+        firewall_rule_exists=True,
+        socat_installed=False,
+        is_admin=True,
+    )
+    mock_connectivity.return_value = True
+
+    info = server.get_all_diagnostic_info()
+
+    assert info.wsl_ip == "172.20.16.1"
+    assert info.windows_ip == "192.168.1.100"
+    assert info.public_ip == "203.0.113.42"
+    assert info.firewall_rule_exists is True
+    assert info.environment_check.wsl_available is True
+    assert info.environment_check.steamcmd_installed is True
+    assert info.environment_check.palserver_installed is True
+    assert info.network_setup.mirrored_mode_supported is True
+    assert info.network_setup.mirrored_mode_enabled is True
+    assert info.external_connectivity is True

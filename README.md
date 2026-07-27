@@ -1,51 +1,86 @@
 # LVK Palworld Server Manager / 帕魯世界伺服器管理器
 
-LVK Palworld Server Manager is a Python-based Tkinter application designed to help users launch and manage a Palworld dedicated server running inside WSL (Windows Subsystem for Linux). The application includes built-in environment validation for WSL, SteamCMD, and the PalServer installation, and provides both visible and background server launch modes.
+LVK Palworld Server Manager is a Python Tkinter desktop application for launching and managing a Palworld dedicated server inside WSL (Windows Subsystem for Linux). It performs environment validation for WSL, SteamCMD, and PalServer, and provides both visible and background server launch modes with built-in diagnostics and network setup guidance.
 
-LVK Palworld Server Manager 是一款基於 Python 與 Tkinter 的應用程式，旨在協助使用者在 WSL（Windows Subsystem for Linux）中啟動與管理帕魯世界專用伺服器。此應用程式內建 WSL、SteamCMD 與 PalServer 的環境檢查功能，並支援「顯示終端機視窗」與「背景執行」兩種啟動模式。
+LVK Palworld Server Manager 是一款 Python 與 Tkinter 的桌面應用程式，用於在 WSL（Windows Subsystem for Linux）內啟動與管理帕魯世界專用伺服器。它會檢查 WSL、SteamCMD 與 PalServer 的環境狀態，並支援顯示終端機視窗與背景執行兩種啟動方式，同時提供診斷與網路設定輔助功能。
 
 ## Overview / 概述
 
-This project provides a lightweight desktop interface for managing a Palworld server from Windows while keeping the actual server execution inside WSL. It focuses on ease of use, clear status feedback, and simplified server lifecycle control.
+This project provides a lightweight Windows GUI for controlling a Palworld server while keeping the server process inside WSL. It focuses on ease of use, clear status feedback, and safe server lifecycle management through PowerShell/WSL commands.
 
-本專案提供一個輕量化的桌面介面，讓使用者可從 Windows 環境中管理位於 WSL 內的帕魯世界伺服器。其設計重點在於操作簡單、狀態清楚，以及提供方便的伺服器啟動與停止流程。
+本專案提供一個簡潔的 Windows GUI，讓使用者可以控制位於 WSL 內的帕魯世界伺服器。其設計重點在於操作簡單、狀態清楚、並透過 PowerShell/WSL 指令安全管理伺服器生命週期。
 
 ## Features / 功能特色
 
 - Environment validation on startup / 啟動時進行環境檢查
-  - Verifies that WSL, SteamCMD, and PalServer are available before allowing the server to start.
-  - 於伺服器啟動前檢查 WSL、SteamCMD 與 PalServer 是否已就緒。
+  - Verifies that WSL is available, SteamCMD is installed in WSL, and the Palworld server installation exists before allowing the server to start.
+  - 於啟動前檢查 WSL 是否可用、WSL 內是否安裝 SteamCMD，以及 Palworld 專用伺服器是否已安裝。
 
 - Two launch modes / 兩種啟動模式
-  - Visible mode opens a dedicated PowerShell/WSL console window.
-  - Background mode runs the server silently in the background and streams output into the application log panel.
-  - 可選擇顯示終端機視窗模式，或背景執行模式，並將輸出顯示於應用程式內的日誌區域。
+  - Visible mode opens a dedicated PowerShell/WSL console window so the user can view server output directly.
+  - Background mode runs the server silently and streams output into the application log panel.
+  - 支援顯示終端機視窗模式與背景執行模式，背景模式會將輸出串流至應用程式內的日誌面板。
 
-- Server control operations / 伺服器控制功能
-  - Supports starting and stopping the server through WSL-based commands.
-  - 支援透過 WSL 指令啟動與停止伺服器。
+- Server start/stop control / 伺服器啟動與停止
+  - Starts the server with WSL bash commands and stops it using `pkill -f PalServer.sh` inside WSL.
+  - 透過 WSL bash 指令啟動伺服器，並使用 `pkill -f PalServer.sh` 在 WSL 內停止伺服器。
+
+- Comprehensive diagnostics / 完整診斷資訊
+  - One-click diagnostic panel shows WSL, LAN, and public IP addresses, firewall rule status, environment checks, network connectivity, and WSL networking mode.
+  - Background checks run without blocking the UI, and diagnostic results can be copied to the clipboard.
+  - 一鍵診斷面板顯示 WSL、區域網路及公開 IP、Windows 防火牆規則狀態、環境檢查結果、網路連線測試，以及 WSL 網路模式狀態。
+
+- Network setup guidance / 網路設定輔助
+  - Detects whether Windows 11 Mirrored mode is supported and whether `socat` is available in WSL when Mirrored mode is not supported.
+  - Helps enable `networkingMode=mirrored` in `~/.wslconfig`, restart WSL, and add the Palworld UDP firewall rule for port 8211.
+  - 偵測是否支援 Windows 11 Mirrored mode，以及在不支援 Mirrored mode 時檢查 WSL 中是否安裝 `socat`。
+  - 協助設定 `~/.wslconfig` 中的 `networkingMode=mirrored`、重新啟動 WSL，並新增 8211 埠的 Windows 防火牆規則。
 
 - Live UI state updates / 即時 UI 狀態更新
-  - Start and Stop buttons automatically reflect the current server state.
-  - 啟動與停止按鈕會根據伺服器目前狀態自動切換。
+  - Start/Stop button state is updated automatically based on the current server status.
+  - 啟動/停止按鈕會根據伺服器目前狀態自動切換。
+
+## Installation / 安裝
+
+Install the package from the project root:
+
+從專案根目錄安裝套件：
+
+```bash
+python -m pip install -e .
+```
+
+Install development dependencies for testing and linting:
+
+安裝開發依賴套件以進行測試與格式檢查：
+
+```bash
+python -m pip install -e .[dev]
+```
 
 ## Project Structure / 專案結構
 
-- src/lvk_paluworld_server_manager/config.py
-  - Shared application configuration and message helpers.
-  - 共用的應用程式設定與訊息輔助函式。
+- `src/lvk_paluworld_server_manager/config.py`
+  - Shared application configuration and UI message helpers.
+  - 共用應用程式設定與 UI 訊息輔助函式。
 
-- src/lvk_paluworld_server_manager/server.py
-  - WSL and PowerShell helpers for launching, stopping, and validating the server environment.
-  - 負責透過 WSL 與 PowerShell 啟動、停止伺服器，並檢查其執行環境。
+- `src/lvk_paluworld_server_manager/server.py`
+  - WSL and PowerShell helpers for launching, stopping, and validating the Palworld server.
+  - Contains diagnostics, network setup checks, and firewall/socat helpers.
+  - 負責透過 WSL 與 PowerShell 啟動、停止與驗證 Palworld 伺服器。
+  - 包含診斷、網路設定檢查，以及防火牆/`socat` 輔助函式。
 
-- src/lvk_paluworld_server_manager/gui/main_window.py
-  - Tkinter-based main window and server control interface.
-  - 主要的 Tkinter 使用者介面與伺服器控制介面。
+- `src/lvk_paluworld_server_manager/gui/main_window.py`
+  - Tkinter main window with server control buttons, launch mode selection, and diagnostic dialog.
+  - Tkinter 主視窗，含伺服器控制按鈕、啟動模式選擇與診斷對話框。
 
-- tests/
-  - Unit tests covering server behavior, GUI interactions, and environment checks.
-  - 涵蓋伺服器行為、GUI 互動與環境檢查的單元測試。
+- `src/lvk_paluworld_server_manager/cli.py`
+  - Command-line entry point for launching the GUI.
+  - 啟動 GUI 的命令列入口。
+
+- `tests/`
+  - Unit tests covering server behavior, environment validation, and GUI interactions.
+  - 單元測試，涵蓋伺服器行為、環境驗證與 GUI 互動。
 
 ## Requirements / 系統需求
 
@@ -58,8 +93,14 @@ This project provides a lightweight desktop interface for managing a Palworld se
 - SteamCMD installed inside WSL.
 - WSL 內已安裝 SteamCMD。
 
-- Palworld dedicated server files, including PalServer.sh, installed inside WSL.
-- WSL 內已安裝帕魯世界專用伺服器檔案，包含 PalServer.sh。
+- Palworld dedicated server files installed inside WSL, including `PalServer.sh`.
+- WSL 內已安裝帕魯世界專用伺服器檔案，包含 `PalServer.sh`。
+
+- Python 3.10 or later.
+- Python 3.10 或更新版本。
+
+- Windows 11 22H2 or later for WSL Mirrored Mode support; on older Windows versions, `socat` is required inside WSL for UDP forwarding.
+- 若要支援 WSL Mirrored Mode，建議使用 Windows 11 22H2 或更新版本；若為舊版本，則需要在 WSL 中安裝 `socat` 以支援 UDP 轉發。
 
 ## Getting Started / 開始使用
 
@@ -71,13 +112,29 @@ Run the application from the project root with the following command:
 python -m lvk_paluworld_server_manager
 ```
 
-If the console script has been installed, the following command is also available:
+If the console script is installed, this command is also available:
 
 若已安裝主控台指令，亦可使用下列指令：
 
 ```bash
 lvk-paluworld-server-manager
 ```
+
+### Using the Diagnostic Tool / 使用診斷工具
+
+Click the "診斷資訊 / Diagnostic Info" button to view comprehensive system diagnostics:
+
+點擊「診斷資訊 / Diagnostic Info」按鈕以查看完整的系統診斷資訊：
+
+- **IP Addresses** / **IP 位址**: WSL IP, Windows LAN IP, and Public IP with port information
+- **Firewall Status** / **防火牆狀態**: UDP 8211 rule configuration status
+- **Environment** / **環境狀態**: WSL, SteamCMD, and PalServer installation status
+- **Network Connectivity** / **網路連線**: External internet connectivity verification
+- **WSL Network Setup** / **WSL 網路設定**: Mirrored mode support and administrator rights status
+
+Use the "複製資訊 / Copy Info" button to copy all diagnostic data to the clipboard for troubleshooting or sharing.
+
+使用「複製資訊 / Copy Info」按鈕將所有診斷資料複製到剪貼簿，方便疑難排解或分享給技術支援人員。
 
 ## Testing / 測試
 
@@ -87,4 +144,13 @@ Run the test suite with:
 
 ```bash
 pytest -q
+```
+
+For linting and static checks, run:
+
+若要進行格式與靜態檢查，請執行：
+
+```bash
+python -m ruff check src tests
+python -m mypy src
 ```
