@@ -1,14 +1,14 @@
 # LVK Palworld Server Manager / 帕魯世界伺服器管理器
 
-LVK Palworld Server Manager is a Python Tkinter desktop application for launching and managing a Palworld dedicated server inside WSL (Windows Subsystem for Linux). It performs environment validation for WSL, SteamCMD, and PalServer, and provides both visible and background server launch modes with built-in diagnostics and network setup guidance.
+LVK Palworld Server Manager is a Python application for launching and managing a Palworld dedicated server inside WSL (Windows Subsystem for Linux). It performs environment validation for WSL, SteamCMD, and PalServer, and provides both visible and background server launch modes with built-in diagnostics and network setup guidance.
 
-LVK Palworld Server Manager 是一款 Python 與 Tkinter 的桌面應用程式，用於在 WSL（Windows Subsystem for Linux）內啟動與管理帕魯世界專用伺服器。它會檢查 WSL、SteamCMD 與 PalServer 的環境狀態，並支援顯示終端機視窗與背景執行兩種啟動方式，同時提供診斷與網路設定輔助功能。
+LVK Palworld Server Manager 是一款 Python 應用程式，用於在 WSL（Windows Subsystem for Linux）內啟動與管理帕魯世界專用伺服器。它會檢查 WSL、SteamCMD 與 PalServer 的環境狀態，並支援顯示終端機視窗與背景執行兩種啟動方式，同時提供診斷與網路設定輔助功能。
 
 ## Overview / 概述
 
-This project provides a lightweight Windows GUI for controlling a Palworld server while keeping the server process inside WSL. It focuses on ease of use, clear status feedback, and safe server lifecycle management through PowerShell/WSL commands.
+This project provides lightweight Windows-based management for a Palworld server while keeping the server process inside WSL. It focuses on clear status feedback and safe server lifecycle management through PowerShell/WSL commands.
 
-本專案提供一個簡潔的 Windows GUI，讓使用者可以控制位於 WSL 內的帕魯世界伺服器。其設計重點在於操作簡單、狀態清楚、並透過 PowerShell/WSL 指令安全管理伺服器生命週期。
+本專案提供輕量的 Windows 管理工具，讓使用者可以控制位於 WSL 內的帕魯世界伺服器。其設計重點在於狀態清楚、並透過 PowerShell/WSL 指令安全管理伺服器生命週期。
 
 ## Features / 功能特色
 
@@ -77,8 +77,8 @@ python -m pip install -e .[dev]
   - 包含診斷、網路設定檢查，以及防火牆/`socat` 輔助函式。
 
 - `src/lvk_paluworld_server_manager/gui/main_window.py`
-  - Tkinter main window with server controls, world-save backup action, launch-mode selection, and diagnostic dialog.
-  - Tkinter 主視窗，含伺服器控制、世界存檔備份、啟動模式選擇與診斷對話框。
+  - Server controls, world-save backup action, launch-mode selection, and diagnostic information.
+  - 提供伺服器控制、世界存檔備份、啟動模式選擇與診斷資訊。
 
 - `src/lvk_paluworld_server_manager/world_options.py`
   - World-save discovery, backup validation, and retained world-settings editing support.
