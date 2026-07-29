@@ -27,6 +27,9 @@ _WORLD_OPTIONS_DONE = object()
 #: Sentinel placed on the game-backup queue once a background task finishes.
 _BACKUP_DONE = object()
 
+#: Sentinel placed on the server-update queue once a background task finishes.
+_UPDATE_DONE = object()
+
 #: Palworld default game port shown alongside the IP address.
 _PALWORLD_PORT: int = 8211
 
@@ -103,6 +106,8 @@ class MainWindow(tk.Tk):
         self._ip_poll_job: str | None = None
         self._backup_queue: queue.Queue[object] = queue.Queue()
         self._backup_poll_job: str | None = None
+        self._update_queue: queue.Queue[object] = queue.Queue()
+        self._update_poll_job: str | None = None
 
         title_label = tk.Label(
             self,
@@ -159,6 +164,14 @@ class MainWindow(tk.Tk):
             state="disabled",
         )
         self.stop_server_button.pack(side="left", padx=8)
+
+        self.update_server_button = tk.Button(
+            self,
+            text="更新伺服器 / Update Server",
+            width=25,
+            command=self._on_update_server,
+        )
+        self.update_server_button.pack(pady=(0, 8))
 
         diagnostic_button = tk.Button(
             self,
@@ -223,6 +236,7 @@ class MainWindow(tk.Tk):
                 parent=self,
             )
             self.start_server_button.config(state="disabled")
+            self.update_server_button.config(state="disabled")
         else:
             # Only proceed to network check when the core environment is ready.
             self.after(200, self._perform_network_check)
@@ -263,6 +277,7 @@ class MainWindow(tk.Tk):
         """Toggle the Start/Stop buttons to reflect the server state."""
         self.start_server_button.config(state="disabled" if running else "normal")
         self.stop_server_button.config(state="normal" if running else "disabled")
+        self.update_server_button.config(state="disabled" if running else "normal")
 
     def _append_output(self, text: str) -> None:
         """Append a line of text to the scrollable output box."""
@@ -291,6 +306,82 @@ class MainWindow(tk.Tk):
         server.stop_server()
         self._set_running_state(False)
         self.ip_label.config(text="")
+
+    def _on_update_server(self) -> None:
+        """Update Palworld Dedicated Server through SteamCMD in a worker thread."""
+        if server.is_server_process_running():
+            messagebox.showerror(
+                "伺服器仍在執行 / Server Is Running",
+                "請先停止伺服器，再執行更新。\n\n"
+                "Stop the server before updating it.",
+                parent=self,
+            )
+            return
+
+        self.start_server_button.config(state="disabled")
+        self.stop_server_button.config(state="disabled")
+        self.update_server_button.config(state="disabled", text="更新中... / Updating...")
+        self._append_output("\n正在透過 SteamCMD 更新伺服器... / Updating server via SteamCMD...\n")
+        threading.Thread(target=self._update_server, daemon=True).start()
+        self._update_poll_job = self.after(100, self._poll_update_queue)
+
+    def _update_server(self) -> None:
+        """Run the server update outside Tk's event thread."""
+        try:
+            result = server.update_server()
+            output = (result.stdout or "") + (result.stderr or "")
+            self._update_queue.put(("result", result.returncode, output))
+        except OSError as exc:
+            self._update_queue.put(("error", str(exc)))
+        self._update_queue.put(_UPDATE_DONE)
+
+    def _poll_update_queue(self) -> None:
+        """Display server-update output and completion state on the Tk thread."""
+        done = False
+        while True:
+            try:
+                item = self._update_queue.get_nowait()
+            except queue.Empty:
+                break
+
+            if item is _UPDATE_DONE:
+                done = True
+                break
+
+            kind, *payload = item  # type: ignore[misc]
+            if kind == "result":
+                returncode, output = payload
+                if output:
+                    self._append_output(str(output))
+                    if not str(output).endswith("\n"):
+                        self._append_output("\n")
+                if returncode == 0:
+                    messagebox.showinfo(
+                        "更新完成 / Update Complete",
+                        "伺服器已更新完成，現在可以啟動。\n\n"
+                        "The server update completed. You can start it now.",
+                        parent=self,
+                    )
+                else:
+                    messagebox.showerror(
+                        "更新失敗 / Update Failed",
+                        "SteamCMD 更新失敗，請查看日誌中的詳細資訊。\n\n"
+                        "SteamCMD failed to update the server. See the log for details.",
+                        parent=self,
+                    )
+            elif kind == "error":
+                messagebox.showerror(
+                    "更新失敗 / Update Failed",
+                    f"無法啟動 SteamCMD 更新：{payload[0]}",
+                    parent=self,
+                )
+
+        if done:
+            self._update_poll_job = None
+            self._set_running_state(False)
+            self.update_server_button.config(text="更新伺服器 / Update Server")
+        else:
+            self._update_poll_job = self.after(100, self._poll_update_queue)
 
     def _on_show_diagnostics(self) -> None:
         """Handle the "Diagnostic Info" button click."""

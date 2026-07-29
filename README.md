@@ -25,6 +25,10 @@ This project provides lightweight Windows-based management for a Palworld server
   - Starts the server with WSL bash commands and stops it using `pkill -f PalServer.sh` inside WSL.
   - 透過 WSL bash 指令啟動伺服器，並使用 `pkill -f PalServer.sh` 在 WSL 內停止伺服器。
 
+- One-click server updates / 一鍵更新伺服器
+  - The **Update Server** button stops accidental updates while PalServer is running, then uses SteamCMD to run `app_update 2394010 validate` inside WSL and displays the result in the application log.
+  - **更新伺服器 / Update Server** 按鈕會在 PalServer 執行時拒絕更新；停止後，會在 WSL 內透過 SteamCMD 執行 `app_update 2394010 validate`，並將結果顯示於程式日誌。
+
 - Verified world-save backups / 已驗證的世界存檔備份
   - Creates a ZIP backup of every dedicated-server world save, excluding existing backups, and verifies that the archive contains each world's `WorldOption.sav`.
   - Refuses to create the backup while PalServer is running, helping avoid inconsistent save data.

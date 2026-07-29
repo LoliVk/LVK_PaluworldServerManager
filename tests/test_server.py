@@ -54,6 +54,27 @@ def test_start_server_background_pipes_stdout(mock_popen: MagicMock) -> None:
     assert kwargs["text"] is True
 
 
+def test_build_update_bash_command_updates_palworld_dedicated_server() -> None:
+    command = server.build_update_bash_command()
+
+    assert f"+app_update {server.PALWORLD_DEDICATED_SERVER_APP_ID}" in command
+    assert "+login anonymous" in command
+    assert "+quit" in command
+    assert "steamcmd" in command
+    assert "~/Steam/steamcmd.sh" in command
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_update_server_runs_steamcmd_command_inside_wsl(mock_run: MagicMock) -> None:
+    server.update_server()
+
+    args, kwargs = mock_run.call_args
+    assert args[0][:3] == ["wsl.exe", "bash", "-lc"]
+    assert f"+app_update {server.PALWORLD_DEDICATED_SERVER_APP_ID}" in args[0][3]
+    assert kwargs["capture_output"] is True
+    assert kwargs["text"] is True
+
+
 @patch("lvk_paluworld_server_manager.server.subprocess.run")
 def test_stop_server_runs_pkill_via_wsl(mock_run: MagicMock) -> None:
     server.stop_server()

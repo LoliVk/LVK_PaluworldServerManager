@@ -36,6 +36,9 @@ START_COMMAND: Final[str] = "./PalServer.sh"
 #: Pattern used to find the running server process so it can be stopped.
 STOP_PROCESS_PATTERN: Final[str] = "PalServer.sh"
 
+#: Steam application ID for Palworld Dedicated Server.
+PALWORLD_DEDICATED_SERVER_APP_ID: Final[int] = 2394010
+
 #: Windows-only flag that opens the child process in its own console window.
 #: Defined defensively so importing this module on non-Windows platforms
 #: (e.g. during CI on Linux/macOS) does not raise an ``AttributeError``.
@@ -87,6 +90,34 @@ def start_server_background() -> subprocess.Popen[str]:
         encoding="utf-8",
         errors="replace",  # 處理無法解碼的字元，避免崩潰
         bufsize=1,
+    )
+
+
+def build_update_bash_command() -> str:
+    """Build the SteamCMD command that updates the dedicated server files.
+
+    SteamCMD is commonly installed as either a command on ``PATH`` or the
+    official ``~/Steam/steamcmd.sh`` script, so support both arrangements.
+    """
+    update_args = f"+login anonymous +app_update {PALWORLD_DEDICATED_SERVER_APP_ID} validate +quit"
+    return (
+        "if command -v steamcmd >/dev/null 2>&1; then "
+        f"steamcmd {update_args}; "
+        "elif test -x ~/Steam/steamcmd.sh; then "
+        f"~/Steam/steamcmd.sh {update_args}; "
+        "else echo 'SteamCMD was not found.' >&2; exit 127; fi"
+    )
+
+
+def update_server() -> subprocess.CompletedProcess[str]:
+    """Update Palworld Dedicated Server through SteamCMD inside WSL."""
+    return subprocess.run(
+        ["wsl.exe", "bash", "-lc", build_update_bash_command()],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
 
 

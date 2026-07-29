@@ -194,6 +194,43 @@ def test_stop_server_clears_ip_label(mock_stop: MagicMock) -> None:
         window.destroy()
 
 
+@patch("lvk_paluworld_server_manager.gui.main_window.threading.Thread")
+@patch("lvk_paluworld_server_manager.gui.main_window.server.is_server_process_running")
+def test_update_button_dispatches_worker_when_server_is_stopped(
+    mock_running: MagicMock, mock_thread_cls: MagicMock
+) -> None:
+    mock_running.return_value = False
+    window = _make_window()
+
+    try:
+        window._on_update_server()
+
+        mock_thread_cls.assert_called_once_with(target=window._update_server, daemon=True)
+        assert str(window.update_server_button["state"]) == "disabled"
+        assert "更新中" in str(window.update_server_button["text"])
+    finally:
+        if window._update_poll_job is not None:
+            window.after_cancel(window._update_poll_job)
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.messagebox.showerror")
+@patch("lvk_paluworld_server_manager.gui.main_window.server.is_server_process_running")
+def test_update_button_requires_stopped_server(
+    mock_running: MagicMock, mock_showerror: MagicMock
+) -> None:
+    mock_running.return_value = True
+    window = _make_window()
+
+    try:
+        window._on_update_server()
+
+        mock_showerror.assert_called_once()
+        assert str(window.update_server_button["state"]) == "normal"
+    finally:
+        window.destroy()
+
+
 # ---------------------------------------------------------------------------
 # Backup entry point / retained world-options editor
 # ---------------------------------------------------------------------------
