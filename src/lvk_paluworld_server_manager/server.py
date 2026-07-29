@@ -107,6 +107,71 @@ def stop_server() -> subprocess.CompletedProcess[str]:
     )
 
 
+#: Path (within WSL) to the dedicated-server's world save directory.
+SAVE_GAMES_PATH: Final[str] = f"{PALSERVER_PATH}/Pal/Saved/SaveGames/0"
+
+#: Windows-visible UNC prefix used to reach files inside a WSL distribution.
+_WSL_UNC_TEMPLATE: Final[str] = r"\\wsl$\{distro}"
+
+
+def is_server_process_running(distro: str = "Ubuntu") -> bool:
+    """Return ``True`` if a ``PalServer.sh`` process is currently alive in WSL.
+
+    This is the authoritative check used before writing any save file, so it
+    detects servers started outside this GUI (e.g. manually via a terminal).
+    """
+    try:
+        result = subprocess.run(
+            ["wsl.exe", "-d", distro, "pgrep", "-f", STOP_PROCESS_PATTERN],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=15,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired):
+        # If we cannot determine the state, err on the side of caution and
+        # treat the server as running so a write is not attempted.
+        return True
+
+
+def get_save_games_windows_path(distro: str = "Ubuntu") -> Path:
+    """Return the Windows-visible (``\\\\wsl$``) path to the world save directory."""
+    unc_root = _WSL_UNC_TEMPLATE.format(distro=distro)
+    # PALSERVER_PATH begins with "~", which expands to the distro's default
+    # user home directory when accessed through the \\wsl$ UNC path as
+    # "home/<user>". We resolve the actual home directory via WSL itself so
+    # this does not depend on assuming a particular Linux username.
+    home_result = _run_wsl_capture(["echo", "$HOME"], distro=distro)
+    home = home_result.strip() if home_result else None
+    if not home:
+        raise OSError(f"無法取得 WSL 使用者家目錄 / Failed to resolve WSL home directory ({distro})")
+    relative = SAVE_GAMES_PATH.replace("~/", "", 1)
+    home_relative = home.lstrip("/")
+    return Path(unc_root) / home_relative.replace("/", "\\") / relative.replace("/", "\\")
+
+
+def _run_wsl_capture(args: list[str], distro: str = "Ubuntu") -> str | None:
+    """Run *args* inside WSL and return stripped stdout, or ``None`` on failure."""
+    try:
+        result = subprocess.run(
+            ["wsl.exe", "-d", distro, *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
 @dataclass(frozen=True)
 class EnvironmentCheckResult:
     """Result of checking that the required runtime environment is ready."""

@@ -9,7 +9,7 @@ description = "Simplified Python Tkinter-based GUI application scaffold"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "LVK" }]
-dependencies = []
+dependencies = ["palworld-save-tools==0.24.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0", "ruff>=0.6.0", "mypy>=1.10.0"]
@@ -25,6 +25,10 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[[tool.mypy.overrides]]
+module = "palworld_save_tools.*"
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100

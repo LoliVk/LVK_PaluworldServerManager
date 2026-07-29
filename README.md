@@ -25,6 +25,12 @@ This project provides a lightweight Windows GUI for controlling a Palworld serve
   - Starts the server with WSL bash commands and stops it using `pkill -f PalServer.sh` inside WSL.
   - 透過 WSL bash 指令啟動伺服器，並使用 `pkill -f PalServer.sh` 在 WSL 內停止伺服器。
 
+- Verified world-save backups / 已驗證的世界存檔備份
+  - Creates a ZIP backup of every dedicated-server world save, excluding existing backups, and verifies that the archive contains each world's `WorldOption.sav`.
+  - Refuses to create the backup while PalServer is running, helping avoid inconsistent save data.
+  - 建立所有專用伺服器世界存檔的 ZIP 備份，排除既有備份檔，並驗證封存檔包含各世界的 `WorldOption.sav`。
+  - PalServer 執行期間會拒絕建立備份，以避免產生不一致的存檔資料。
+
 - Comprehensive diagnostics / 完整診斷資訊
   - One-click diagnostic panel shows WSL, LAN, and public IP addresses, firewall rule status, environment checks, network connectivity, and WSL networking mode.
   - Background checks run without blocking the UI, and diagnostic results can be copied to the clipboard.
@@ -71,8 +77,12 @@ python -m pip install -e .[dev]
   - 包含診斷、網路設定檢查，以及防火牆/`socat` 輔助函式。
 
 - `src/lvk_paluworld_server_manager/gui/main_window.py`
-  - Tkinter main window with server control buttons, launch mode selection, and diagnostic dialog.
-  - Tkinter 主視窗，含伺服器控制按鈕、啟動模式選擇與診斷對話框。
+  - Tkinter main window with server controls, world-save backup action, launch-mode selection, and diagnostic dialog.
+  - Tkinter 主視窗，含伺服器控制、世界存檔備份、啟動模式選擇與診斷對話框。
+
+- `src/lvk_paluworld_server_manager/world_options.py`
+  - World-save discovery, backup validation, and retained world-settings editing support.
+  - 世界存檔探索、備份驗證，以及保留中的世界設定編輯支援。
 
 - `src/lvk_paluworld_server_manager/cli.py`
   - Command-line entry point for launching the GUI.
@@ -98,6 +108,9 @@ python -m pip install -e .[dev]
 
 - Python 3.10 or later.
 - Python 3.10 或更新版本。
+
+- `palworld-save-tools` version 0.24.0.
+- `palworld-save-tools` 0.24.0 版。
 
 - Windows 11 22H2 or later for WSL Mirrored Mode support; on older Windows versions, `socat` is required inside WSL for UDP forwarding.
 - 若要支援 WSL Mirrored Mode，建議使用 Windows 11 22H2 或更新版本；若為舊版本，則需要在 WSL 中安裝 `socat` 以支援 UDP 轉發。
@@ -135,6 +148,18 @@ Click the "診斷資訊 / Diagnostic Info" button to view comprehensive system d
 Use the "複製資訊 / Copy Info" button to copy all diagnostic data to the clipboard for troubleshooting or sharing.
 
 使用「複製資訊 / Copy Info」按鈕將所有診斷資料複製到剪貼簿，方便疑難排解或分享給技術支援人員。
+
+### Backing Up World Saves / 備份世界存檔
+
+Click **「備份所有世界存檔 / Backup All World Saves」** from the main window to create a timestamped ZIP archive in the dedicated-server save directory's `Backups` folder. Stop PalServer before starting the backup; the application refuses the operation while the server is running.
+
+在主視窗點擊 **「備份所有世界存檔 / Backup All World Saves」**，即可在專用伺服器存檔目錄的 `Backups` 資料夾建立含時間戳記的 ZIP 封存檔。開始備份前請先停止 PalServer；伺服器執行時，應用程式會拒絕此操作。
+
+### World Settings Editor Status / 世界設定編輯器狀態
+
+The world-settings editor code is retained but its main-window entry point is temporarily hidden. It will be re-enabled only after Palworld 1.0 PlM / Oodle support can safely read and write the current save format.
+
+世界設定編輯器的程式碼已保留，但主視窗入口暫時隱藏。待 Palworld 1.0 的 PlM / Oodle 支援能安全讀寫目前的存檔格式後，才會重新啟用。
 
 ## Testing / 測試
 

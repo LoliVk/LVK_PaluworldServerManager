@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from lvk_paluworld_server_manager import server
 
 
@@ -78,7 +80,7 @@ def test_check_wsl_available_true_when_status_and_list_succeed(
 ) -> None:
     mock_run.side_effect = [
         _completed(0),
-        _completed(0, "Ubuntu\x00"),
+        _completed(0, b"Ubuntu\x00"),
     ]
 
     assert server.check_wsl_available() is True
@@ -247,7 +249,6 @@ def test_get_public_ip_address_returns_none_on_failure(mock_urlopen: MagicMock) 
 @patch("lvk_paluworld_server_manager.server.sys.platform", "win32")
 @patch("lvk_paluworld_server_manager.server.winreg", create=True)
 def test_detect_windows_build_reads_registry(mock_winreg: MagicMock) -> None:
-    import winreg  # imported only to verify the mock path works
 
     mock_winreg.HKEY_LOCAL_MACHINE = 0
     mock_winreg.OpenKey.return_value = MagicMock()
@@ -276,7 +277,7 @@ def test_is_mirrored_mode_supported_false_for_low_build() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_is_mirrored_mode_enabled_true_when_set(tmp_path: "Path") -> None:
+def test_is_mirrored_mode_enabled_true_when_set(tmp_path: Path) -> None:
     cfg = tmp_path / ".wslconfig"
     cfg.write_text("[wsl2]\nnetworkingMode=mirrored\n", encoding="utf-8")
 
@@ -284,7 +285,7 @@ def test_is_mirrored_mode_enabled_true_when_set(tmp_path: "Path") -> None:
         assert server.is_mirrored_mode_enabled() is True
 
 
-def test_is_mirrored_mode_enabled_false_when_nat(tmp_path: "Path") -> None:
+def test_is_mirrored_mode_enabled_false_when_nat(tmp_path: Path) -> None:
     cfg = tmp_path / ".wslconfig"
     cfg.write_text("[wsl2]\nnetworkingMode=nat\n", encoding="utf-8")
 
@@ -292,7 +293,7 @@ def test_is_mirrored_mode_enabled_false_when_nat(tmp_path: "Path") -> None:
         assert server.is_mirrored_mode_enabled() is False
 
 
-def test_is_mirrored_mode_enabled_false_when_file_missing(tmp_path: "Path") -> None:
+def test_is_mirrored_mode_enabled_false_when_file_missing(tmp_path: Path) -> None:
     with patch(
         "lvk_paluworld_server_manager.server._WSLCONFIG_PATH",
         tmp_path / ".wslconfig",
@@ -307,7 +308,7 @@ def test_is_mirrored_mode_enabled_false_when_file_missing(tmp_path: "Path") -> N
 
 @patch("lvk_paluworld_server_manager.server.subprocess.run")
 def test_enable_mirrored_mode_writes_wslconfig(
-    mock_run: MagicMock, tmp_path: "Path"
+    mock_run: MagicMock, tmp_path: Path
 ) -> None:
     cfg = tmp_path / ".wslconfig"
     mock_run.return_value = _completed(0)
@@ -327,7 +328,7 @@ def test_enable_mirrored_mode_writes_wslconfig(
 
 @patch("lvk_paluworld_server_manager.server.subprocess.run")
 def test_enable_mirrored_mode_overwrites_existing_value(
-    mock_run: MagicMock, tmp_path: "Path"
+    mock_run: MagicMock, tmp_path: Path
 ) -> None:
     cfg = tmp_path / ".wslconfig"
     cfg.write_text("[wsl2]\nnetworkingMode=nat\n", encoding="utf-8")
@@ -564,3 +565,95 @@ def test_get_all_diagnostic_info_collects_all_data(
     assert info.network_setup.mirrored_mode_supported is True
     assert info.network_setup.mirrored_mode_enabled is True
     assert info.external_connectivity is True
+
+
+# ---------------------------------------------------------------------------
+# is_server_process_running
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_is_server_process_running_true_when_pgrep_finds_process(
+    mock_run: MagicMock,
+) -> None:
+    mock_run.return_value = _completed(0, "1234\n")
+
+    assert server.is_server_process_running() is True
+    args, kwargs = mock_run.call_args
+    assert args[0][:3] == ["wsl.exe", "-d", "Ubuntu"]
+    assert "pgrep" in args[0]
+    assert server.STOP_PROCESS_PATTERN in args[0]
+    assert kwargs["timeout"] == 15
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_is_server_process_running_false_when_pgrep_finds_nothing(
+    mock_run: MagicMock,
+) -> None:
+    mock_run.return_value = _completed(1, "")
+
+    assert server.is_server_process_running() is False
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_is_server_process_running_true_on_error_to_be_safe(
+    mock_run: MagicMock,
+) -> None:
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="wsl.exe", timeout=15)
+
+    # When the check itself fails, err on the side of caution and treat the
+    # server as running so a write is never attempted blindly.
+    assert server.is_server_process_running() is True
+
+
+# ---------------------------------------------------------------------------
+# get_save_games_windows_path
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server._run_wsl_capture")
+def test_get_save_games_windows_path_builds_unc_path(mock_capture: MagicMock) -> None:
+    mock_capture.return_value = "/home/lolivk"
+
+    result = server.get_save_games_windows_path()
+
+    assert str(result) == (
+        r"\\wsl$\Ubuntu\home\lolivk\.local\share\Steam\steamapps\common\PalServer"
+        r"\Pal\Saved\SaveGames\0"
+    )
+
+
+@patch("lvk_paluworld_server_manager.server._run_wsl_capture")
+def test_get_save_games_windows_path_raises_when_home_unresolvable(
+    mock_capture: MagicMock,
+) -> None:
+    mock_capture.return_value = None
+
+    with pytest.raises(OSError):
+        server.get_save_games_windows_path()
+
+
+# ---------------------------------------------------------------------------
+# _run_wsl_capture
+# ---------------------------------------------------------------------------
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_run_wsl_capture_returns_stripped_stdout(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(0, "  /home/lolivk  \n")
+
+    assert server._run_wsl_capture(["echo", "$HOME"]) == "/home/lolivk"
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_run_wsl_capture_returns_none_on_failure(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(1, "")
+
+    assert server._run_wsl_capture(["echo", "$HOME"]) is None
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_run_wsl_capture_returns_none_on_exception(mock_run: MagicMock) -> None:
+    mock_run.side_effect = OSError("wsl.exe not found")
+
+    assert server._run_wsl_capture(["echo", "$HOME"]) is None

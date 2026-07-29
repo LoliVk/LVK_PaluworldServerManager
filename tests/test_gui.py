@@ -191,3 +191,134 @@ def test_stop_server_clears_ip_label(mock_stop: MagicMock) -> None:
         assert window.ip_label["text"] == ""
     finally:
         window.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Backup entry point / retained world-options editor
+# ---------------------------------------------------------------------------
+
+
+def test_main_window_shows_backup_button_without_editor_button() -> None:
+    window = _make_window()
+
+    try:
+        button_texts = [str(child.cget("text")) for child in window.winfo_children() if isinstance(child, tk.Button)]
+        assert "備份所有世界存檔 / Backup All World Saves" in button_texts
+        assert "編輯世界設定 / Edit World Settings" not in button_texts
+    finally:
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.threading.Thread")
+def test_backup_button_dispatches_background_worker(mock_thread_cls: MagicMock) -> None:
+    window = _make_window()
+
+    try:
+        window._on_backup_all_world_saves()
+
+        kwargs = mock_thread_cls.call_args.kwargs
+        assert kwargs["target"] == window._backup_all_world_saves
+        assert kwargs["daemon"] is True
+        assert str(window.backup_worlds_button["state"]) == "disabled"
+    finally:
+        if window._backup_poll_job is not None:
+            window.after_cancel(window._backup_poll_job)
+        window.destroy()
+
+
+def _make_world_option_dialog(parent: MainWindow) -> object:
+    from lvk_paluworld_server_manager.gui.main_window import WorldOptionEditorDialog
+
+    dialog = WorldOptionEditorDialog.__new__(WorldOptionEditorDialog)
+    tk.Toplevel.__init__(dialog, parent)
+    dialog._parent = parent
+    dialog._queue = __import__("queue").Queue()
+    dialog._poll_job = None
+    dialog._worlds = []
+    dialog._gvas_file = None
+    dialog._save_type = None
+    dialog._field_vars = {}
+    return dialog
+
+
+def test_world_option_editor_reports_no_worlds_found() -> None:
+    window = _make_window()
+
+    try:
+        dialog = _make_world_option_dialog(window)
+        try:
+            from lvk_paluworld_server_manager.gui.main_window import (
+                WorldOptionEditorDialog,
+            )
+
+            dialog._status_label = tk.Label(dialog)
+            dialog._world_combo = __import__("tkinter.ttk", fromlist=["Combobox"]).Combobox(
+                dialog
+            )
+            WorldOptionEditorDialog._on_worlds_discovered(dialog, [])
+
+            assert "找不到" in str(dialog._status_label["text"])
+        finally:
+            dialog.destroy()
+    finally:
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.server.is_server_process_running")
+def test_world_option_editor_save_blocked_when_server_running(
+    mock_running: MagicMock, tmp_path: object
+) -> None:
+    from lvk_paluworld_server_manager import world_options
+
+    mock_running.return_value = True
+    window = _make_window()
+
+    try:
+        dialog = _make_world_option_dialog(window)
+        try:
+            world_dir = tmp_path / "AAAA"  # type: ignore[operator]
+            world_dir.mkdir()
+            world_option_path = world_dir / "WorldOption.sav"
+            world_option_path.write_bytes(b"original")
+            world = world_options.WorldSaveInfo(
+                world_id="AAAA", world_option_path=world_option_path, world_dir=world_dir
+            )
+
+            dialog._selected_world = world
+            dialog._gvas_file = MagicMock()
+            dialog._gvas_file.properties = {}
+            dialog._save_type = 0x31
+
+            dialog._do_save(world, {})
+
+            item = dialog._queue.get_nowait()
+            assert item[0] == "error"
+            assert "PalServer" in item[1]
+            assert world_option_path.read_bytes() == b"original"
+        finally:
+            dialog.destroy()
+    finally:
+        window.destroy()
+
+
+def test_world_option_editor_json_tab_is_read_only() -> None:
+    window = _make_window()
+
+    try:
+        dialog = _make_world_option_dialog(window)
+        try:
+            from lvk_paluworld_server_manager.gui.main_window import (
+                WorldOptionEditorDialog,
+            )
+
+            json_frame = tk.Frame(dialog)
+            WorldOptionEditorDialog._build_json_tab(dialog, json_frame)
+            WorldOptionEditorDialog._set_json_content(dialog, '{"hello": "world"}')
+
+            assert str(dialog._json_text["state"]) == "disabled"
+            content = dialog._json_text.get("1.0", tk.END)
+            assert "hello" in content
+        finally:
+            dialog.destroy()
+    finally:
+        window.destroy()
