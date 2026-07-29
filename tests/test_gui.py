@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import tkinter as tk
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -223,6 +224,44 @@ def test_backup_button_dispatches_background_worker(mock_thread_cls: MagicMock) 
     finally:
         if window._backup_poll_job is not None:
             window.after_cancel(window._backup_poll_job)
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.BackupCompleteDialog")
+def test_backup_queue_shows_completion_dialog_with_archive_path(
+    mock_dialog: MagicMock,
+) -> None:
+    window = _make_window()
+    archive_path = Path(r"\\wsl$\Ubuntu\home\lolivk\Backups\savegames_20260729_173724.zip")
+
+    try:
+        window._backup_queue.put(("saved", archive_path))
+        window._backup_queue.put(__import__(
+            "lvk_paluworld_server_manager.gui.main_window", fromlist=["_BACKUP_DONE"]
+        )._BACKUP_DONE)
+        window._poll_backup_queue()
+
+        mock_dialog.assert_called_once_with(window, archive_path)
+        assert str(window.backup_worlds_button["state"]) == "normal"
+        assert window.backup_worlds_button["text"] == "備份所有世界存檔 / Backup All World Saves"
+    finally:
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.server.open_in_file_manager")
+def test_backup_complete_dialog_opens_archive_parent_folder(mock_open: MagicMock) -> None:
+    window = _make_window()
+    archive_path = Path(r"\\wsl$\Ubuntu\home\lolivk\Backups\savegames_20260729_173724.zip")
+
+    try:
+        from lvk_paluworld_server_manager.gui.main_window import BackupCompleteDialog
+
+        dialog = BackupCompleteDialog(window, archive_path)
+        dialog._open_backup_folder()
+
+        mock_open.assert_called_once_with(archive_path.parent)
+        assert not dialog.winfo_exists()
+    finally:
         window.destroy()
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import configparser
 import ctypes
+import os
 import platform
 import socket
 import subprocess
@@ -112,6 +113,20 @@ SAVE_GAMES_PATH: Final[str] = f"{PALSERVER_PATH}/Pal/Saved/SaveGames/0"
 
 #: Windows-visible UNC prefix used to reach files inside a WSL distribution.
 _WSL_UNC_TEMPLATE: Final[str] = r"\\wsl$\{distro}"
+
+
+def open_in_file_manager(path: Path) -> None:
+    """Open *path* in the platform's file manager.
+
+    The GUI ordinarily runs on Windows, where ``path`` may be a ``\\\\wsl$``
+    UNC path. ``os.startfile`` hands that path directly to Explorer.
+    """
+    if sys.platform == "win32":
+        os.startfile(str(path))
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])
 
 
 def is_server_process_running(distro: str = "Ubuntu") -> bool:

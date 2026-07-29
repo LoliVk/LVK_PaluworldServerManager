@@ -28,8 +28,10 @@ This project provides lightweight Windows-based management for a Palworld server
 - Verified world-save backups / 已驗證的世界存檔備份
   - Creates a ZIP backup of every dedicated-server world save, excluding existing backups, and verifies that the archive contains each world's `WorldOption.sav`.
   - Refuses to create the backup while PalServer is running, helping avoid inconsistent save data.
+  - Shows the completed archive path and provides an **Open Backup Folder** button to open its `Backups` folder in File Explorer.
   - 建立所有專用伺服器世界存檔的 ZIP 備份，排除既有備份檔，並驗證封存檔包含各世界的 `WorldOption.sav`。
   - PalServer 執行期間會拒絕建立備份，以避免產生不一致的存檔資料。
+  - 備份完成後會顯示封存檔路徑，並提供 **開啟備份資料夾 / Open Backup Folder** 按鈕，可在檔案總管開啟 `Backups` 資料夾。
 
 - Comprehensive diagnostics / 完整診斷資訊
   - One-click diagnostic panel shows WSL, LAN, and public IP addresses, firewall rule status, environment checks, network connectivity, and WSL networking mode.
@@ -151,9 +153,9 @@ Use the "複製資訊 / Copy Info" button to copy all diagnostic data to the cli
 
 ### Backing Up World Saves / 備份世界存檔
 
-Click **「備份所有世界存檔 / Backup All World Saves」** from the main window to create a timestamped ZIP archive in the dedicated-server save directory's `Backups` folder. Stop PalServer before starting the backup; the application refuses the operation while the server is running.
+Click **「備份所有世界存檔 / Backup All World Saves」** from the main window to create a timestamped ZIP archive in the dedicated-server save directory's `Backups` folder. When the backup completes, use **「開啟備份資料夾 / Open Backup Folder」** to open that folder in File Explorer. Stop PalServer before starting the backup; the application refuses the operation while the server is running.
 
-在主視窗點擊 **「備份所有世界存檔 / Backup All World Saves」**，即可在專用伺服器存檔目錄的 `Backups` 資料夾建立含時間戳記的 ZIP 封存檔。開始備份前請先停止 PalServer；伺服器執行時，應用程式會拒絕此操作。
+在主視窗點擊 **「備份所有世界存檔 / Backup All World Saves」**，即可在專用伺服器存檔目錄的 `Backups` 資料夾建立含時間戳記的 ZIP 封存檔。備份完成後，可使用 **「開啟備份資料夾 / Open Backup Folder」** 在檔案總管開啟該資料夾。開始備份前請先停止 PalServer；伺服器執行時，應用程式會拒絕此操作。
 
 ### World Settings Editor Status / 世界設定編輯器狀態
 

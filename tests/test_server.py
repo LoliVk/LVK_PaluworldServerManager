@@ -633,6 +633,16 @@ def test_get_save_games_windows_path_raises_when_home_unresolvable(
         server.get_save_games_windows_path()
 
 
+@patch("lvk_paluworld_server_manager.server.os.startfile", create=True)
+@patch("lvk_paluworld_server_manager.server.sys.platform", "win32")
+def test_open_in_file_manager_opens_windows_path(mock_startfile: MagicMock) -> None:
+    backup_folder = Path(r"\\wsl$\Ubuntu\home\lolivk\Backups")
+
+    server.open_in_file_manager(backup_folder)
+
+    mock_startfile.assert_called_once_with(str(backup_folder))
+
+
 # ---------------------------------------------------------------------------
 # _run_wsl_capture
 # ---------------------------------------------------------------------------

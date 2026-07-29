@@ -8,6 +8,7 @@ import sys
 import threading
 import tkinter as tk
 from collections.abc import Callable
+from pathlib import Path
 from tkinter import messagebox, scrolledtext, ttk
 from typing import Any
 
@@ -28,6 +29,59 @@ _BACKUP_DONE = object()
 
 #: Palworld default game port shown alongside the IP address.
 _PALWORLD_PORT: int = 8211
+
+
+class BackupCompleteDialog(tk.Toplevel):
+    """Modal confirmation with an action to reveal the completed backup."""
+
+    def __init__(self, parent: tk.Misc, archive_path: Path) -> None:
+        super().__init__(parent)
+        self._archive_path = archive_path
+        self.title("備份完成 / Backup Complete")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.configure(padx=24, pady=20)
+
+        tk.Label(
+            self,
+            text=(
+                "所有世界存檔已備份。\n"
+                f"位置：{archive_path}\n\n"
+                "All world saves were backed up.\n"
+                f"Location: {archive_path}"
+            ),
+            justify="left",
+            wraplength=460,
+        ).pack(fill="x")
+
+        button_frame = tk.Frame(self)
+        button_frame.pack(pady=(18, 0))
+        tk.Button(
+            button_frame,
+            text="開啟備份資料夾 / Open Backup Folder",
+            command=self._open_backup_folder,
+        ).pack(side="left", padx=(0, 8))
+        tk.Button(button_frame, text="確定 / Close", width=14, command=self.destroy).pack(
+            side="left"
+        )
+
+        self.grab_set()
+        self.focus_set()
+
+    def _open_backup_folder(self) -> None:
+        """Open the folder containing the completed ZIP archive."""
+        try:
+            server.open_in_file_manager(self._archive_path.parent)
+        except OSError as exc:
+            messagebox.showerror(
+                "無法開啟資料夾 / Unable to Open Folder",
+                f"無法開啟備份資料夾：{self._archive_path.parent}\n\n"
+                f"Could not open backup folder: {exc}",
+                parent=self,
+            )
+            return
+        self.destroy()
 
 
 class MainWindow(tk.Tk):
@@ -286,12 +340,7 @@ class MainWindow(tk.Tk):
 
             kind, payload = item  # type: ignore[misc]
             if kind == "saved":
-                messagebox.showinfo(
-                    "備份完成 / Backup Complete",
-                    f"所有世界存檔已備份。\n位置：{payload}\n\n"
-                    f"All world saves were backed up.\nLocation: {payload}",
-                    parent=self,
-                )
+                BackupCompleteDialog(self, payload)
             elif kind == "error":
                 messagebox.showerror("備份失敗 / Backup Failed", str(payload), parent=self)
 
