@@ -174,6 +174,7 @@ def test_start_server_fetches_and_displays_ip_address(
         window._fetch_connection_info()
         window._poll_ip_queue()
 
+        assert "127.0.0.1:8211" in window.ip_label["text"]
         assert "172.20.16.1" in window.ip_label["text"]
         assert "8211" in window.ip_label["text"]
     finally:

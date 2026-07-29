@@ -38,9 +38,9 @@ This project provides lightweight Windows-based management for a Palworld server
   - 備份完成後會顯示封存檔路徑，並提供 **開啟備份資料夾 / Open Backup Folder** 按鈕，可在檔案總管開啟 `Backups` 資料夾。
 
 - Comprehensive diagnostics / 完整診斷資訊
-  - One-click diagnostic panel shows WSL, LAN, and public IP addresses, firewall rule status, environment checks, network connectivity, and WSL networking mode.
+  - One-click diagnostic panel shows localhost, WSL, LAN, and public IP addresses, firewall rule status, environment checks, network connectivity, and WSL networking mode.
   - Background checks run without blocking the UI, and diagnostic results can be copied to the clipboard.
-  - 一鍵診斷面板顯示 WSL、區域網路及公開 IP、Windows 防火牆規則狀態、環境檢查結果、網路連線測試，以及 WSL 網路模式狀態。
+  - 一鍵診斷面板顯示本機、WSL、區域網路及公開 IP、Windows 防火牆規則狀態、環境檢查結果、網路連線測試，以及 WSL 網路模式狀態。
 
 - Network setup guidance / 網路設定輔助
   - Detects whether Windows 11 Mirrored mode is supported and whether `socat` is available in WSL when Mirrored mode is not supported.
@@ -145,7 +145,7 @@ Click the "診斷資訊 / Diagnostic Info" button to view comprehensive system d
 
 點擊「診斷資訊 / Diagnostic Info」按鈕以查看完整的系統診斷資訊：
 
-- **IP Addresses** / **IP 位址**: WSL IP, Windows LAN IP, and Public IP with port information
+- **IP Addresses** / **IP 位址**: Localhost (`127.0.0.1:8211`), WSL IP, Windows LAN IP, and Public IP with port information
 - **Firewall Status** / **防火牆狀態**: UDP 8211 rule configuration status
 - **Environment** / **環境狀態**: WSL, SteamCMD, and PalServer installation status
 - **Network Connectivity** / **網路連線**: External internet connectivity verification
@@ -154,6 +154,22 @@ Click the "診斷資訊 / Diagnostic Info" button to view comprehensive system d
 Use the "複製資訊 / Copy Info" button to copy all diagnostic data to the clipboard for troubleshooting or sharing.
 
 使用「複製資訊 / Copy Info」按鈕將所有診斷資料複製到剪貼簿，方便疑難排解或分享給技術支援人員。
+
+### Choosing a Connection Address / 選擇連線位址
+
+Use the displayed address that matches where the player is connecting from:
+
+請依玩家所在位置選擇對應的顯示位址：
+
+| Player location / 玩家位置 | Connection address / 連線位址 |
+| --- | --- |
+| The same Windows computer hosting the server / 同一台執行伺服器的 Windows 電腦 | `127.0.0.1:8211` |
+| Another device on the same local network / 同一區域網路的其他裝置 | `Windows LAN IP:8211` |
+| A player connecting from the Internet / 從網際網路連線的玩家 | `Public IP:8211` |
+
+For Internet players, configure the router to forward **UDP 8211** to the Windows host and allow the same port through Windows Defender Firewall.
+
+外網玩家連線時，請將路由器的 **UDP 8211** 轉發至 Windows 主機，並在 Windows Defender 防火牆中放行相同連接埠。
 
 ### Backing Up World Saves / 備份世界存檔
 

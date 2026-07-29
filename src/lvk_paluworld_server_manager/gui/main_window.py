@@ -472,6 +472,7 @@ class MainWindow(tk.Tk):
             if ip_info:
                 lines: list[str] = []
                 wsl_ip, host_ip, public_ip = ip_info
+                lines.append(f"本機 / Localhost：127.0.0.1:{_PALWORLD_PORT}")
                 if wsl_ip:
                     lines.append(f"WSL IP：{wsl_ip}:{_PALWORLD_PORT}")
                 if host_ip:
@@ -559,6 +560,14 @@ class DiagnosticDialog(tk.Toplevel):
             self, text="🌐 IP 位址 / IP Addresses", padx=10, pady=8
         )
         ip_frame.pack(fill="x", pady=(0, 8))
+
+        self._localhost_ip_label = tk.Label(
+            ip_frame,
+            text=f"✅ 本機 / Localhost：127.0.0.1:{_PALWORLD_PORT}",
+            anchor="w",
+            foreground="#1a6e1a",
+        )
+        self._localhost_ip_label.pack(fill="x", pady=2)
 
         self._wsl_ip_label = tk.Label(
             ip_frame, text="⏳ WSL IP：查詢中...", anchor="w", foreground="#555555"
