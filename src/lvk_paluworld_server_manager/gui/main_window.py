@@ -29,6 +29,9 @@ _IP_DONE = object()
 #: Sentinel placed on the game-backup queue once a background task finishes.
 _BACKUP_DONE = object()
 
+#: Sentinel placed on the read-only backup inventory queue once it finishes.
+_BACKUP_INVENTORY_DONE = object()
+
 #: Sentinel placed on the server-update queue once a background task finishes.
 _UPDATE_DONE = object()
 
@@ -54,6 +57,9 @@ class MainWindow(tk.Tk):
         self._ip_poll_job: str | None = None
         self._backup_queue: queue.Queue[object] = queue.Queue()
         self._backup_poll_job: str | None = None
+        self._backup_inventory_queue: queue.Queue[object] = queue.Queue()
+        self._backup_inventory_poll_job: str | None = None
+        self._backup_inventory_refresh_pending = False
         self._update_queue: queue.Queue[object] = queue.Queue()
         self._update_poll_job: str | None = None
         self._start_options_popup: tk.Toplevel | None = None
@@ -97,7 +103,10 @@ class MainWindow(tk.Tk):
             on_scroll_console=self._resume_console_auto_scroll,
             on_console_manual_scroll=self._pause_console_auto_scroll,
         )
-        self.backups_page = BackupsPage(self._page_container, on_backup=self._on_backup_all_world_saves)
+        self.backups_page = BackupsPage(
+            self._page_container,
+            on_backup=self._on_backup_all_world_saves,
+        )
         self.world_page = PlaceholderPage(self._page_container, "World")
         self.stats_page = PlaceholderPage(self._page_container, "Stats")
         self._pages = {
@@ -160,6 +169,8 @@ class MainWindow(tk.Tk):
         """Raise one named page and synchronize both navigation variants."""
         self._active_page = page_name
         self._pages[page_name].tkraise()
+        if page_name == "backups":
+            self._refresh_backup_inventory()
         for key, buttons in self._navigation_buttons.items():
             selected = key == page_name
             for button in buttons:
@@ -675,6 +686,8 @@ class MainWindow(tk.Tk):
     def _on_close(self) -> None:
         """Close auxiliary floating UI before destroying the application window."""
         self._hide_start_options()
+        if self._backup_inventory_poll_job is not None:
+            self.after_cancel(self._backup_inventory_poll_job)
         self.destroy()
 
     def _on_stop_server(self) -> None:
@@ -774,7 +787,7 @@ class MainWindow(tk.Tk):
 
     def _on_backup_all_world_saves(self) -> None:
         """Start a verified backup of every dedicated-server world save."""
-        self.backup_worlds_button.config(state="disabled", text="備份中... / Backing up...")
+        self.backup_worlds_button.config(state="disabled", text="BACKING UP...")
         threading.Thread(target=self._backup_all_world_saves, daemon=True).start()
         self._backup_poll_job = self.after(100, self._poll_backup_queue)
 
@@ -810,14 +823,59 @@ class MainWindow(tk.Tk):
             kind, payload = item  # type: ignore[misc]
             if kind == "saved":
                 BackupCompleteDialog(self, payload)
+                self._refresh_backup_inventory()
             elif kind == "error":
                 messagebox.showerror("備份失敗 / Backup Failed", str(payload), parent=self)
 
         if done:
             self._backup_poll_job = None
-            self.backup_worlds_button.config(state="normal", text="備份所有世界存檔 / Backup All World Saves")
+            self.backup_worlds_button.config(state="normal", text="+  CREATE SNAPSHOT")
         else:
             self._backup_poll_job = self.after(100, self._poll_backup_queue)
+
+    def _refresh_backup_inventory(self) -> None:
+        """Start a background refresh of the read-only archive inventory."""
+        if self._backup_inventory_poll_job is not None:
+            self._backup_inventory_refresh_pending = True
+            return
+        self._backup_inventory_refresh_pending = False
+        self.backups_page.set_inventory_loading()
+        threading.Thread(target=self._load_backup_inventory, daemon=True).start()
+        self._backup_inventory_poll_job = self.after(100, self._poll_backup_inventory_queue)
+
+    def _load_backup_inventory(self) -> None:
+        """Read and verify archives outside the Tk event loop."""
+        try:
+            archives = world_options.list_backup_archives(server.get_save_games_windows_path())
+            self._backup_inventory_queue.put(("loaded", archives))
+        except world_options.WorldOptionsError as exc:
+            self._backup_inventory_queue.put(("error", str(exc)))
+        except Exception as exc:  # noqa: BLE001
+            self._backup_inventory_queue.put(("error", f"Unable to load backup inventory: {exc}"))
+        self._backup_inventory_queue.put(_BACKUP_INVENTORY_DONE)
+
+    def _poll_backup_inventory_queue(self) -> None:
+        """Apply backup inventory results on the Tk thread."""
+        done = False
+        while True:
+            try:
+                item = self._backup_inventory_queue.get_nowait()
+            except queue.Empty:
+                break
+            if item is _BACKUP_INVENTORY_DONE:
+                done = True
+                break
+            kind, payload = item  # type: ignore[misc]
+            if kind == "loaded":
+                self.backups_page.set_backup_archives(payload)
+            elif kind == "error":
+                self.backups_page.set_inventory_error(str(payload))
+        if done:
+            self._backup_inventory_poll_job = None
+            if self._backup_inventory_refresh_pending:
+                self._refresh_backup_inventory()
+        else:
+            self._backup_inventory_poll_job = self.after(100, self._poll_backup_inventory_queue)
 
     def _fetch_connection_info(self) -> None:
         """Query the WSL, host LAN, and public IP addresses in a worker thread."""

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -9,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lvk_paluworld_server_manager.config import AppConfig
+from lvk_paluworld_server_manager import world_options
 from lvk_paluworld_server_manager.gui import MainWindow
 
 
@@ -30,7 +32,10 @@ def test_main_window_uses_config_title() -> None:
         window.destroy()
 
 
-def test_navigation_switches_pages_and_moves_backup_action_to_backups_page() -> None:
+@patch("lvk_paluworld_server_manager.gui.main_window.threading.Thread")
+def test_navigation_switches_pages_and_moves_backup_action_to_backups_page(
+    _mock_thread_cls: MagicMock,
+) -> None:
     window = _make_window()
 
     try:
@@ -319,7 +324,7 @@ def test_main_window_shows_backup_button_without_editor_button() -> None:
         button_texts = [
             str(widget.cget("text")) for widget in iter_widgets(window) if isinstance(widget, tk.Button)
         ]
-        assert "BACK UP ALL WORLD SAVES" in button_texts
+        assert "+  CREATE SNAPSHOT" in button_texts
         assert "編輯世界設定 / Edit World Settings" not in button_texts
     finally:
         window.destroy()
@@ -342,9 +347,11 @@ def test_backup_button_dispatches_background_worker(mock_thread_cls: MagicMock) 
         window.destroy()
 
 
+@patch("lvk_paluworld_server_manager.gui.main_window.MainWindow._refresh_backup_inventory")
 @patch("lvk_paluworld_server_manager.gui.main_window.BackupCompleteDialog")
 def test_backup_queue_shows_completion_dialog_with_archive_path(
     mock_dialog: MagicMock,
+    mock_refresh: MagicMock,
 ) -> None:
     window = _make_window()
     archive_path = Path(r"\\wsl$\Ubuntu\home\lolivk\Backups\savegames_20260729_173724.zip")
@@ -357,8 +364,31 @@ def test_backup_queue_shows_completion_dialog_with_archive_path(
         window._poll_backup_queue()
 
         mock_dialog.assert_called_once_with(window, archive_path)
+        mock_refresh.assert_called_once()
         assert str(window.backup_worlds_button["state"]) == "normal"
-        assert window.backup_worlds_button["text"] == "備份所有世界存檔 / Backup All World Saves"
+        assert window.backup_worlds_button["text"] == "+  CREATE SNAPSHOT"
+    finally:
+        window.destroy()
+
+
+def test_backup_inventory_queue_updates_backups_page() -> None:
+    window = _make_window()
+    archive = world_options.BackupArchive(
+        path=Path("savegames_20260102_030405.zip"),
+        created_at=datetime(2026, 1, 2, 3, 4, 5),
+        size_bytes=1024,
+        verified=True,
+    )
+
+    try:
+        window._backup_inventory_queue.put(("loaded", [archive]))
+        window._backup_inventory_queue.put(__import__(
+            "lvk_paluworld_server_manager.gui.main_window", fromlist=["_BACKUP_INVENTORY_DONE"]
+        )._BACKUP_INVENTORY_DONE)
+        window._poll_backup_inventory_queue()
+
+        assert window.backups_page._total_value["text"] == "1"
+        assert window.backups_page._inventory_status["text"] == "1 archive"
     finally:
         window.destroy()
 

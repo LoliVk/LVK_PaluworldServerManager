@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -40,6 +41,8 @@ from palworld_save_tools.paltypes import (
 
 #: Filename of the world-settings save file inside a world's save directory.
 WORLD_OPTION_FILENAME = "WorldOption.sav"
+
+_BACKUP_ARCHIVE_TIMESTAMP = re.compile(r"^savegames_(\d{8}_\d{6})$")
 
 #: Custom property decoders, excluding paths known to be broken/disabled.
 #: ``WorldOption.sav`` does not contain any of these (they are Level.sav
@@ -87,6 +90,17 @@ class WorldSaveInfo:
     world_id: str
     world_option_path: Path
     world_dir: Path
+
+
+@dataclass(frozen=True)
+class BackupArchive:
+    """A read-only summary of one archive in the shared backups directory."""
+
+    path: Path
+    created_at: datetime
+    size_bytes: int
+    verified: bool
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -458,6 +472,80 @@ def apply_settings(properties: dict[str, Any], changes: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 # Backup
 # ---------------------------------------------------------------------------
+
+
+def list_backup_archives(save_games_root: Path) -> list[BackupArchive]:
+    """Return verified ZIP archives found directly under ``Backups``.
+
+    This intentionally performs no cleanup or repair.  It is suitable for a
+    background UI worker because each archive is fully tested before being
+    labelled as verified.
+    """
+    backups_root = save_games_root / "Backups"
+    if not backups_root.exists():
+        return []
+    if not backups_root.is_dir():
+        raise BackupError(f"Backups path is not a directory: {backups_root}")
+
+    try:
+        candidates = sorted(
+            (
+                path
+                for path in backups_root.iterdir()
+                if path.is_file() and path.suffix.lower() == ".zip"
+            ),
+            key=lambda path: path.name,
+        )
+    except OSError as exc:
+        raise BackupError(f"Unable to read backups folder: {exc}") from exc
+
+    archives: list[BackupArchive] = []
+    for archive_path in candidates:
+        try:
+            stat = archive_path.stat()
+            timestamp_match = _BACKUP_ARCHIVE_TIMESTAMP.fullmatch(archive_path.stem)
+            try:
+                created_at = (
+                    datetime.strptime(timestamp_match.group(1), "%Y%m%d_%H%M%S")
+                    if timestamp_match is not None
+                    else datetime.fromtimestamp(stat.st_mtime)
+                )
+            except ValueError:
+                created_at = datetime.fromtimestamp(stat.st_mtime)
+            error: str | None = None
+            verified = False
+            with zipfile.ZipFile(archive_path) as archive:
+                corrupt_member = archive.testzip()
+                if corrupt_member is not None:
+                    error = f"Corrupt member: {corrupt_member}"
+                elif not any(
+                    name.endswith("/WorldOption.sav") or name == WORLD_OPTION_FILENAME
+                    for name in archive.namelist()
+                ):
+                    error = "Missing WorldOption.sav"
+                else:
+                    verified = True
+        except (OSError, zipfile.BadZipFile) as exc:
+            try:
+                stat = archive_path.stat()
+                created_at = datetime.fromtimestamp(stat.st_mtime)
+            except OSError:
+                stat = None
+                created_at = datetime.fromtimestamp(0)
+            error = str(exc)
+            verified = False
+
+        archives.append(
+            BackupArchive(
+                path=archive_path,
+                created_at=created_at,
+                size_bytes=stat.st_size if stat is not None else 0,
+                verified=verified,
+                error=error,
+            )
+        )
+
+    return sorted(archives, key=lambda archive: archive.created_at, reverse=True)
 
 
 def backup_all_world_saves(

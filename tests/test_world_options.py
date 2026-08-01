@@ -288,6 +288,48 @@ def test_backup_all_world_saves_raises_when_no_worlds_found(tmp_path: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# list_backup_archives
+# ---------------------------------------------------------------------------
+
+
+def test_list_backup_archives_verifies_and_sorts_zip_files(tmp_path: Path) -> None:
+    save_games_root = tmp_path / "SaveGames" / "0"
+    backups_root = save_games_root / "Backups"
+    backups_root.mkdir(parents=True)
+    older = backups_root / "savegames_20260102_030405.zip"
+    newer = backups_root / "savegames_20260103_040506.zip"
+    invalid = backups_root / "savegames_20260101_020304.zip"
+    (backups_root / "notes.txt").write_text("ignore")
+    for archive_path in (older, newer):
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("AAAA/WorldOption.sav", b"world options")
+    with zipfile.ZipFile(invalid, "w") as archive:
+        archive.writestr("README.txt", b"not a world archive")
+
+    archives = world_options.list_backup_archives(save_games_root)
+
+    assert [archive.path.name for archive in archives] == [newer.name, older.name, invalid.name]
+    assert archives[0].created_at == datetime(2026, 1, 3, 4, 5, 6)
+    assert archives[0].verified is True
+    assert archives[2].verified is False
+    assert archives[2].error == "Missing WorldOption.sav"
+
+
+def test_list_backup_archives_marks_corrupt_zip_invalid(tmp_path: Path) -> None:
+    save_games_root = tmp_path / "SaveGames" / "0"
+    backups_root = save_games_root / "Backups"
+    backups_root.mkdir(parents=True)
+    corrupt = backups_root / "savegames_20260102_030405.zip"
+    corrupt.write_bytes(b"not a zip")
+
+    archives = world_options.list_backup_archives(save_games_root)
+
+    assert len(archives) == 1
+    assert archives[0].verified is False
+    assert archives[0].error
+
+
+# ---------------------------------------------------------------------------
 # save_world_options
 # ---------------------------------------------------------------------------
 

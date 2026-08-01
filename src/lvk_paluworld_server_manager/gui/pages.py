@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
+from datetime import datetime
 from tkinter import scrolledtext
 
 from ..config import AppConfig, create_app_message
+from ..world_options import BackupArchive
 from .widgets import CanvasIconButton, RoundedPanel, StatusPill
 
 PALETTE = {
@@ -166,16 +168,183 @@ class DashboardPage(tk.Frame):
 
 
 class BackupsPage(tk.Frame):
-    """Home for the existing verified all-world backup operation."""
+    """Read-only archive inventory and the existing verified backup action."""
 
     def __init__(self, parent: tk.Misc, *, on_backup: Callable[[], None]) -> None:
-        super().__init__(parent, background=PALETTE["background"], padx=24, pady=20)
-        panel = RoundedPanel(self, background=PALETTE["card"], border=PALETTE["border"], radius=8, height=230)
-        panel.pack(fill="x", anchor="n")
-        tk.Label(panel.content, text="BACKUPS", background=PALETTE["card"], foreground=PALETTE["text"], font=("Segoe UI", 20, "bold")).pack(anchor="w", padx=24, pady=(24, 8))
-        tk.Label(panel.content, text="Create a verified archive of every world save. The server must be stopped before backup begins.", background=PALETTE["card"], foreground=PALETTE["muted"], justify="left", wraplength=500).pack(anchor="w", padx=24)
-        self.backup_worlds_button = tk.Button(panel.content, text="BACK UP ALL WORLD SAVES", command=on_backup, background=PALETTE["secondary"], activebackground="#144688", foreground="#ffffff", activeforeground="#ffffff", relief="flat", font=("Segoe UI", 10, "bold"), padx=18, pady=10)
-        self.backup_worlds_button.pack(anchor="w", padx=24, pady=(22, 24))
+        super().__init__(parent, background=PALETTE["background"])
+        self._scroll_canvas = tk.Canvas(self, background=PALETTE["background"], highlightthickness=0)
+        self._scrollbar = tk.Scrollbar(self, orient="vertical", command=self._scroll_canvas.yview)
+        self._scroll_canvas.configure(yscrollcommand=self._scrollbar.set)
+        self._scrollbar.pack(side="right", fill="y")
+        self._scroll_canvas.pack(side="left", fill="both", expand=True)
+        self.content = tk.Frame(self._scroll_canvas, background=PALETTE["background"], padx=24, pady=24)
+        self._content_window = self._scroll_canvas.create_window(0, 0, anchor="nw", window=self.content)
+        self.content.bind("<Configure>", self._update_scroll_region, add="+")
+        self._scroll_canvas.bind("<Configure>", self._resize_content, add="+")
+        self.bind("<Configure>", self._on_resize, add="+")
+        self._archive_rows: list[tk.Frame] = []
+        self._build(on_backup)
+
+    @staticmethod
+    def _card(parent: tk.Misc, **kwargs: object) -> RoundedPanel:
+        return RoundedPanel(parent, background=PALETTE["card"], border=PALETTE["border"], radius=8, **kwargs)
+
+    def _build(self, on_backup: Callable[[], None]) -> None:
+        header = tk.Frame(self.content, background=PALETTE["background"])
+        header.pack(fill="x", pady=(0, 20))
+        text = tk.Frame(header, background=PALETTE["background"])
+        text.pack(side="left", fill="x", expand=True)
+        tk.Label(text, text="BACKUP OPERATIONS", background=PALETTE["background"], foreground=PALETTE["text"], font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        tk.Label(text, text="Manage verified world-save snapshots and review archive health.", background=PALETTE["background"], foreground=PALETTE["muted"], font=("Segoe UI", 10)).pack(anchor="w", pady=(6, 0))
+        self.backup_worlds_button = tk.Button(header, text="+  CREATE SNAPSHOT", command=on_backup, background=PALETTE["secondary"], activebackground="#144688", foreground="#ffffff", activeforeground="#ffffff", relief="flat", font=("Segoe UI", 9, "bold"), padx=18, pady=10)
+        self.backup_worlds_button.pack(side="right", anchor="n")
+
+        self.layout = tk.Frame(self.content, background=PALETTE["background"])
+        self.layout.pack(fill="both", expand=True)
+        self.layout.columnconfigure(0, weight=2, minsize=520)
+        self.layout.columnconfigure(1, weight=1, minsize=270)
+
+        self._left_column = tk.Frame(self.layout, background=PALETTE["background"])
+        self._left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
+        stats = tk.Frame(self._left_column, background=PALETTE["background"])
+        stats.pack(fill="x", pady=(0, 16))
+        self._total_value = self._stat_card(stats, "TOTAL ARCHIVES", "--")
+        self._storage_value = self._stat_card(stats, "STORAGE USED", "--")
+        self._latest_value = self._stat_card(stats, "LATEST BACKUP", "--", highlighted=True)
+
+        self.ledger_card = self._card(self._left_column, height=360)
+        self.ledger_card.pack(fill="both", expand=True)
+        ledger_header = tk.Frame(self.ledger_card.content, background=PALETTE["card_high"])
+        ledger_header.pack(fill="x", padx=1, pady=1)
+        tk.Label(ledger_header, text="ARCHIVE LEDGER", background=PALETTE["card_high"], foreground=PALETTE["text"], font=("Segoe UI", 14, "bold")).pack(side="left", padx=16, pady=12)
+        self._inventory_status = tk.Label(ledger_header, text="Loading archives...", background=PALETTE["card_high"], foreground=PALETTE["muted"], font=("Segoe UI", 8))
+        self._inventory_status.pack(side="right", padx=16)
+        self._ledger_body = tk.Frame(self.ledger_card.content, background="#ffffff")
+        self._ledger_body.pack(fill="both", expand=True, padx=1, pady=(0, 1))
+        columns = ("ID", "DATE", "TYPE", "SIZE", "STATUS")
+        header_row = tk.Frame(self._ledger_body, background="#ffffff")
+        header_row.pack(fill="x")
+        for index, title in enumerate(columns):
+            header_row.columnconfigure(index, weight=(2 if index < 2 else 1))
+            tk.Label(header_row, text=title, background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold"), anchor="w").grid(row=0, column=index, sticky="ew", padx=12, pady=9)
+        self._empty_label = tk.Label(self._ledger_body, text="Loading archive inventory...", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10))
+        self._empty_label.pack(fill="both", expand=True, pady=70)
+
+        self._right_column = tk.Frame(self.layout, background=PALETTE["background"])
+        self._right_column.grid(row=0, column=1, sticky="new")
+        policy = self._card(self._right_column, height=292)
+        policy.pack(fill="x", pady=(0, 16))
+        tk.Label(policy.content, text="BACKUP POLICY", background=PALETTE["card"], foreground=PALETTE["text"], font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16, pady=(16, 12))
+        for title, value in (("AUTOMATED BACKUPS", "Not configured"), ("RETENTION LIMIT", "Not configured"), ("STORAGE QUOTA", "Not configured")):
+            item = tk.Frame(policy.content, background="#ffffff", highlightbackground=PALETTE["border"], highlightthickness=1)
+            item.pack(fill="x", padx=16, pady=(0, 10))
+            tk.Label(item, text=title, background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=10, pady=(8, 1))
+            tk.Label(item, text=value, background="#ffffff", foreground=PALETTE["text"], font=("Segoe UI", 9)).pack(anchor="w", padx=10, pady=(0, 8))
+        tk.Label(policy.content, text="Read-only preview; scheduling is not available yet.", background=PALETTE["card"], foreground=PALETTE["muted"], font=("Segoe UI", 8), wraplength=240, justify="left").pack(anchor="w", padx=16)
+
+        heuristics = self._card(self._right_column, height=190)
+        heuristics.pack(fill="x")
+        tk.Label(heuristics.content, text="STORAGE HEURISTICS", background=PALETTE["card"], foreground=PALETTE["text"], font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16, pady=(16, 10))
+        tk.Label(heuristics.content, text="Archive growth forecasting will be available when an automated retention policy is configured.", background=PALETTE["card"], foreground=PALETTE["muted"], font=("Segoe UI", 9), justify="left", wraplength=235).pack(anchor="w", padx=16)
+
+    def _stat_card(self, parent: tk.Misc, title: str, value: str, *, highlighted: bool = False) -> tk.Label:
+        background = PALETTE["primary_light"] if highlighted else PALETTE["card"]
+        card = RoundedPanel(parent, background=background, border=PALETTE["border"], radius=8, height=92)
+        card.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        tk.Label(card.content, text=title, background=background, foreground=PALETTE["primary"] if highlighted else PALETTE["muted"], font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=12, pady=(14, 4))
+        label = tk.Label(card.content, text=value, background=background, foreground=PALETTE["text"], font=("Segoe UI", 16, "bold"))
+        label.pack(anchor="w", padx=12)
+        return label
+
+    def set_inventory_loading(self) -> None:
+        self._inventory_status.config(text="Loading archives...")
+        self._clear_archive_rows()
+        self._empty_label.config(text="Loading archive inventory...")
+        self._empty_label.pack(fill="both", expand=True, pady=70)
+
+    def set_inventory_error(self, error: str) -> None:
+        self._inventory_status.config(text="Inventory unavailable")
+        self._clear_archive_rows()
+        self._empty_label.config(text=f"Unable to load archives.\n{error}", foreground=PALETTE["danger"])
+        self._empty_label.pack(fill="both", expand=True, pady=58)
+        self._total_value.config(text="--")
+        self._storage_value.config(text="--")
+        self._latest_value.config(text="--")
+
+    def set_backup_archives(self, archives: list[BackupArchive]) -> None:
+        self._clear_archive_rows()
+        self._empty_label.pack_forget()
+        self._inventory_status.config(text=f"{len(archives)} archive{'s' if len(archives) != 1 else ''}")
+        self._total_value.config(text=str(len(archives)))
+        self._storage_value.config(text=self._format_size(sum(archive.size_bytes for archive in archives)))
+        self._latest_value.config(text=self._format_relative_time(archives[0].created_at) if archives else "--")
+        if not archives:
+            self._empty_label.config(text="No archive snapshots found.", foreground=PALETTE["muted"])
+            self._empty_label.pack(fill="both", expand=True, pady=70)
+            return
+        for archive in archives:
+            self._add_archive_row(archive)
+
+    def _add_archive_row(self, archive: BackupArchive) -> None:
+        row_background = "#ffffff" if archive.verified else "#fff7f6"
+        row = tk.Frame(self._ledger_body, background=row_background, highlightbackground=PALETTE["border"], highlightthickness=1)
+        row.pack(fill="x")
+        self._archive_rows.append(row)
+        values = (
+            archive.path.stem.upper(),
+            archive.created_at.strftime("%Y-%m-%d\n%H:%M"),
+            "MANUAL",
+            self._format_size(archive.size_bytes),
+            "Verified" if archive.verified else "Invalid",
+        )
+        for index, value in enumerate(values):
+            row.columnconfigure(index, weight=(2 if index < 2 else 1))
+            color = PALETTE["primary"] if archive.verified and index == 4 else (PALETTE["danger"] if not archive.verified and index == 4 else PALETTE["text"])
+            tk.Label(row, text=value, background=row_background, foreground=color, font=("Consolas" if index in (0, 1, 3) else "Segoe UI", 9), anchor="w", justify="left").grid(row=0, column=index, sticky="ew", padx=12, pady=10)
+
+    def _clear_archive_rows(self) -> None:
+        for row in self._archive_rows:
+            row.destroy()
+        self._archive_rows.clear()
+
+    @staticmethod
+    def _format_size(size_bytes: int) -> str:
+        if size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        if size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+    @staticmethod
+    def _format_relative_time(created_at: datetime) -> str:
+        seconds = max(0, int((datetime.now() - created_at).total_seconds()))
+        if seconds < 60:
+            return "Just now"
+        if seconds < 3600:
+            return f"{seconds // 60} min ago"
+        if seconds < 86400:
+            return f"{seconds // 3600} hr ago"
+        return created_at.strftime("%Y-%m-%d")
+
+    def _update_scroll_region(self, _event: tk.Event[tk.Misc]) -> None:
+        self._scroll_canvas.configure(scrollregion=self._scroll_canvas.bbox("all"))
+
+    def _resize_content(self, event: tk.Event[tk.Misc]) -> None:
+        self._scroll_canvas.itemconfigure(self._content_window, width=event.width)
+
+    def _on_resize(self, event: tk.Event[tk.Misc]) -> None:
+        if event.widget is not self:
+            return
+        if event.width < 900:
+            self.layout.columnconfigure(0, minsize=0)
+            self.layout.columnconfigure(1, minsize=0)
+            self._left_column.grid_configure(row=0, column=0, padx=0, pady=(0, 16))
+            self._right_column.grid_configure(row=1, column=0, padx=0)
+        else:
+            self.layout.columnconfigure(0, minsize=520)
+            self.layout.columnconfigure(1, minsize=270)
+            self._left_column.grid_configure(row=0, column=0, padx=(0, 16), pady=0)
+            self._right_column.grid_configure(row=0, column=1, padx=0, pady=0)
 
 
 class PlaceholderPage(tk.Frame):
