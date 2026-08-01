@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import tkinter as tk
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,6 +26,57 @@ def test_main_window_uses_config_title() -> None:
 
     try:
         assert window.title() == "Demo App"
+    finally:
+        window.destroy()
+
+
+def test_navigation_switches_pages_and_moves_backup_action_to_backups_page() -> None:
+    window = _make_window()
+
+    try:
+        window.show_page("backups")
+
+        assert window._active_page == "backups"
+        assert window.backup_worlds_button is window.backups_page.backup_worlds_button
+        assert window.backup_worlds_button.winfo_toplevel() is window
+        assert window.backup_worlds_button.master is not window.dashboard_page.console_card.content
+    finally:
+        window.destroy()
+
+
+def test_dashboard_breakpoints_do_not_reserve_an_unused_third_column() -> None:
+    window = _make_window()
+
+    try:
+        page = window.dashboard_page
+        page._on_resize(SimpleNamespace(widget=page, width=520))
+        assert page.console_card.grid_info()["row"] == 2
+        assert page.dashboard.columnconfigure(2)["weight"] == 0
+
+        page._on_resize(SimpleNamespace(widget=page, width=900))
+        assert page.console_card.grid_info()["row"] == 1
+        assert page.console_card.grid_info()["columnspan"] == 2
+        assert page.dashboard.columnconfigure(2)["weight"] == 0
+
+        page._on_resize(SimpleNamespace(widget=page, width=1060))
+        assert page.console_card.grid_info()["row"] == 0
+        assert page.console_card.grid_info()["column"] == 2
+        assert page.dashboard.columnconfigure(2)["weight"] == 1
+    finally:
+        window.destroy()
+
+
+def test_navigation_uses_bottom_bar_below_compact_breakpoint() -> None:
+    window = _make_window()
+
+    try:
+        window._on_window_resize(SimpleNamespace(widget=window, width=520))
+        assert not window._top_navigation.winfo_manager()
+        assert window._bottom_navigation.winfo_manager() == "pack"
+
+        window._on_window_resize(SimpleNamespace(widget=window, width=900))
+        assert window._top_navigation.winfo_manager() == "pack"
+        assert not window._bottom_navigation.winfo_manager()
     finally:
         window.destroy()
 

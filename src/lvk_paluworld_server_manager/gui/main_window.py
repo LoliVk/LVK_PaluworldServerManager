@@ -15,6 +15,7 @@ from typing import Any
 
 from .. import server, world_options
 from ..config import AppConfig, create_app_message
+from .pages import BackupsPage, DashboardPage, PlaceholderPage
 
 #: Sentinel placed on the output queue once the background process ends.
 _OUTPUT_DONE = object()
@@ -214,7 +215,7 @@ class MainWindow(tk.Tk):
         self.config = config or AppConfig()
         self.title(self.config.title)
         self.geometry("1060x720")
-        self.minsize(900, 640)
+        self.minsize(520, 640)
         self.configure(background="#f3f3f3")
 
         self._process: subprocess.Popen[str] | None = None
@@ -228,129 +229,88 @@ class MainWindow(tk.Tk):
         self._update_poll_job: str | None = None
         self._start_options_popup: tk.Toplevel | None = None
 
-        title_label = tk.Label(
-            self,
-            text=f"帕魯世界伺服器管理器\n{self.config.title}",
-            font=("Segoe UI", 16, "bold"),
-            anchor="center",
-            justify="center",
-        )
-        title_label.pack(pady=(0, 8))
-
-        subtitle_label = tk.Label(
-            self,
-            text=f"{create_app_message(self.config)}\n{self.config.title} 已準備就緒。",
-            font=("Segoe UI", 11),
-            wraplength=420,
-            justify="center",
-        )
-        subtitle_label.pack(pady=(0, 16))
-
-        self.mode_var = tk.StringVar(value="background")
-        mode_frame = tk.Frame(self)
-        mode_frame.pack(pady=(8, 4))
-
-        tk.Radiobutton(
-            mode_frame,
-            text="顯示終端機視窗",
-            variable=self.mode_var,
-            value="visible",
-        ).pack(side="left", padx=4)
-
-        tk.Radiobutton(
-            mode_frame,
-            text="背景執行",
-            variable=self.mode_var,
-            value="background",
-        ).pack(side="left", padx=4)
-
-        server_button_frame = tk.Frame(self)
-        server_button_frame.pack(pady=8)
-
-        self.start_server_button = tk.Button(
-            server_button_frame,
-            text="啟動伺服器 / Start Server",
-            width=20,
-            command=self._on_start_server,
-        )
-        self.start_server_button.pack(side="left", padx=8)
-
-        self.stop_server_button = tk.Button(
-            server_button_frame,
-            text="停止伺服器 / Stop Server",
-            width=20,
-            command=self._on_stop_server,
-            state="disabled",
-        )
-        self.stop_server_button.pack(side="left", padx=8)
-
-        self.update_server_button = tk.Button(
-            self,
-            text="更新伺服器 / Update Server",
-            width=25,
-            command=self._on_update_server,
-        )
-        self.update_server_button.pack(pady=(0, 8))
-
-        diagnostic_button = tk.Button(
-            self,
-            text="診斷資訊 / Diagnostic Info",
-            width=25,
-            command=self._on_show_diagnostics,
-        )
-        diagnostic_button.pack(pady=8)
-
-        self.backup_worlds_button = tk.Button(
-            self,
-            text="備份所有世界存檔 / Backup All World Saves",
-            width=25,
-            command=self._on_backup_all_world_saves,
-        )
-        self.backup_worlds_button.pack(pady=(0, 8))
-
-        ip_frame = tk.Frame(self)
-        ip_frame.pack(pady=(4, 0))
-
-        self.ip_label = tk.Label(
-            ip_frame,
-            text="",
-            font=("Segoe UI", 10),
-            foreground="#1a6e1a",
-            anchor="center",
-            justify="center",
-            wraplength=420,
-        )
-        self.ip_label.pack()
-
-        self.network_status_label = tk.Label(
-            ip_frame,
-            text="",
-            font=("Segoe UI", 9),
-            foreground="#333333",
-            anchor="center",
-            justify="center",
-            wraplength=420,
-        )
-        self.network_status_label.pack(pady=(4, 0))
-
-        self.output_text = scrolledtext.ScrolledText(
-            self,
-            width=52,
-            height=10,
-            state="disabled",
-            font=("Consolas", 9),
-        )
-        self.output_text.pack(pady=(8, 0))
-
-        # Keep the original controls and their bindings intact, then replace
-        # only their visual container with the dashboard presentation.
-        for widget in self.winfo_children():
-            widget.destroy()
-        self._build_dashboard()
+        self._build_navigation()
         self.bind("<ButtonPress-1>", self._dismiss_start_options_on_main_click, add="+")
         self.bind("<Escape>", lambda _event: self._hide_start_options(), add="+")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._perform_environment_check)
+
+    def _build_navigation(self) -> None:
+        """Create the fixed page container and its desktop/mobile navigation."""
+        palette = {"background": "#f3f3f3", "card": "#ffffff", "primary": "#005408", "muted": "#40493d"}
+        self._top_navigation = tk.Frame(self, background=palette["card"], height=48)
+        self._top_navigation.pack(fill="x", side="top")
+        self._page_container = tk.Frame(self, background=palette["background"])
+        self._page_container.pack(fill="both", expand=True)
+        self._bottom_navigation = tk.Frame(self, background=palette["card"], height=64)
+        self._bottom_navigation.pack(fill="x", side="bottom")
+
+        self.dashboard_page = DashboardPage(
+            self._page_container,
+            self.config,
+            on_start=self._toggle_start_options,
+            on_stop=self._on_stop_server,
+            on_update=self._on_update_server,
+            on_diagnostics=self._on_show_diagnostics,
+        )
+        self.backups_page = BackupsPage(self._page_container, on_backup=self._on_backup_all_world_saves)
+        self.world_page = PlaceholderPage(self._page_container, "World")
+        self.stats_page = PlaceholderPage(self._page_container, "Stats")
+        self._pages = {
+            "dashboard": self.dashboard_page,
+            "backups": self.backups_page,
+            "world": self.world_page,
+            "stats": self.stats_page,
+        }
+        for page in self._pages.values():
+            page.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        # Keep existing worker/event handlers unchanged while page views own layout.
+        self.mode_var = self.dashboard_page.mode_var
+        self.start_server_button = self.dashboard_page.start_server_button
+        self.stop_server_button = self.dashboard_page.stop_server_button
+        self.update_server_button = self.dashboard_page.update_server_button
+        self.server_status_label = self.dashboard_page.server_status_label
+        self.server_system_label = self.dashboard_page.server_system_label
+        self.environment_status_label = self.dashboard_page.environment_status_label
+        self._environment_badges = self.dashboard_page.environment_badges
+        self._network_value_labels = self.dashboard_page.network_value_labels
+        self._network_port_pill = self.dashboard_page.network_port_pill
+        self.ip_label = self.dashboard_page.ip_label
+        self.network_status_label = self.dashboard_page.network_status_label
+        self.output_text = self.dashboard_page.output_text
+        self.backup_worlds_button = self.backups_page.backup_worlds_button
+
+        self._navigation_buttons: dict[str, list[tk.Button]] = {key: [] for key in self._pages}
+        for container, compact in ((self._top_navigation, False), (self._bottom_navigation, True)):
+            for key, label in (("dashboard", "DASHBOARD"), ("backups", "BACKUPS"), ("world", "WORLD"), ("stats", "STATS")):
+                button = tk.Button(container, text=label, command=lambda selected=key: self.show_page(selected), relief="flat", borderwidth=0, background=palette["card"], foreground=palette["muted"], activebackground="#e5f4e2", activeforeground=palette["primary"], font=("Segoe UI", 8 if compact else 9, "bold"), padx=18, pady=18 if compact else 14)
+                button.pack(side="left", expand=compact, fill="x" if compact else "none", padx=4)
+                self._navigation_buttons[key].append(button)
+        self.show_page("dashboard")
+        self.bind("<Configure>", self._on_window_resize, add="+")
+
+    def show_page(self, page_name: str) -> None:
+        """Raise one named page and synchronize both navigation variants."""
+        self._active_page = page_name
+        self._pages[page_name].tkraise()
+        for key, buttons in self._navigation_buttons.items():
+            selected = key == page_name
+            for button in buttons:
+                button.configure(foreground="#005408" if selected else "#40493d", background="#e5f4e2" if selected else "#ffffff")
+
+    def _on_window_resize(self, event: tk.Event[tk.Misc]) -> None:
+        """Show top navigation on desktop and bottom navigation on compact layouts."""
+        if event.widget is not self:
+            return
+        if event.width < 768:
+            self._top_navigation.pack_forget()
+            if not self._bottom_navigation.winfo_manager():
+                self._bottom_navigation.pack(fill="x", side="bottom")
+        else:
+            self._bottom_navigation.pack_forget()
+            if not self._top_navigation.winfo_manager():
+                self._top_navigation.pack(fill="x", side="top", before=self._page_container)
 
     def _build_dashboard(self) -> None:
         """Build the high-density server dashboard without changing its behavior."""
