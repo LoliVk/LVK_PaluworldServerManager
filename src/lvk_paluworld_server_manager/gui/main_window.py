@@ -94,10 +94,9 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.config = config or AppConfig()
         self.title(self.config.title)
-        self.geometry("480x520")
-        self.resizable(False, False)
-
-        self.configure(padx=24, pady=24)
+        self.geometry("1060x720")
+        self.minsize(900, 640)
+        self.configure(background="#f3f3f3")
 
         self._process: subprocess.Popen[str] | None = None
         self._output_queue: queue.Queue[object] = queue.Queue()
@@ -223,12 +222,260 @@ class MainWindow(tk.Tk):
         )
         self.output_text.pack(pady=(8, 0))
 
+        # Keep the original controls and their bindings intact, then replace
+        # only their visual container with the dashboard presentation.
+        for widget in self.winfo_children():
+            widget.destroy()
+        self._build_dashboard()
         self.after(100, self._perform_environment_check)
+
+    def _build_dashboard(self) -> None:
+        """Build the high-density server dashboard without changing its behavior."""
+        palette = {
+            "background": "#f3f3f3",
+            "card": "#ffffff",
+            "border": "#bfcab8",
+            "text": "#1a1c1c",
+            "muted": "#40493d",
+            "primary": "#005408",
+            "primary_light": "#e5f4e2",
+            "secondary": "#335ea1",
+            "danger": "#b00000",
+        }
+
+        def card(parent: tk.Misc) -> tk.Frame:
+            return tk.Frame(
+                parent,
+                background=palette["card"],
+                highlightbackground=palette["border"],
+                highlightthickness=1,
+                padx=16,
+                pady=16,
+            )
+
+        def section_title(parent: tk.Misc, text: str, accent: str) -> None:
+            tk.Label(
+                parent,
+                text=text,
+                background=palette["card"],
+                foreground=accent,
+                font=("Segoe UI", 10, "bold"),
+                anchor="w",
+            ).pack(fill="x", pady=(0, 12))
+
+        content = tk.Frame(self, background=palette["background"], padx=24, pady=20)
+        content.pack(fill="both", expand=True)
+
+        header = tk.Frame(content, background=palette["background"])
+        header.pack(fill="x", pady=(0, 16))
+        tk.Label(
+            header,
+            text=self.config.title.upper(),
+            background=palette["background"],
+            foreground=palette["text"],
+            font=("Segoe UI", 20, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            header,
+            text="SYSTEM READY",
+            background=palette["primary_light"],
+            foreground=palette["primary"],
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=5,
+        ).pack(side="right")
+
+        hero = card(content)
+        hero.pack(fill="x", pady=(0, 16))
+        hero.columnconfigure(0, weight=1)
+        hero_status = tk.Frame(hero, background=palette["card"])
+        hero_status.grid(row=0, column=0, sticky="nsew")
+        self.server_status_label = tk.Label(
+            hero_status,
+            text="SERVER STOPPED",
+            background=palette["card"],
+            foreground=palette["muted"],
+            font=("Segoe UI", 24, "bold"),
+            anchor="w",
+        )
+        self.server_status_label.pack(anchor="w")
+        tk.Label(
+            hero_status,
+            text=create_app_message(self.config),
+            background=palette["card"],
+            foreground=palette["muted"],
+            font=("Segoe UI", 10),
+            anchor="w",
+        ).pack(anchor="w", pady=(4, 0))
+
+        action_panel = tk.Frame(hero, background=palette["card"])
+        action_panel.grid(row=0, column=1, sticky="ne", padx=(24, 0))
+        self.mode_var = tk.StringVar(value="background")
+        mode_frame = tk.Frame(action_panel, background=palette["card"])
+        mode_frame.pack(anchor="e", pady=(0, 8))
+        for text, value in (("Background", "background"), ("Visible", "visible")):
+            tk.Radiobutton(
+                mode_frame,
+                text=text,
+                variable=self.mode_var,
+                value=value,
+                background=palette["card"],
+                foreground=palette["muted"],
+                activebackground=palette["card"],
+                font=("Segoe UI", 9),
+            ).pack(side="left", padx=(8, 0))
+
+        button_style = {
+            "relief": "flat",
+            "font": ("Segoe UI", 10, "bold"),
+            "padx": 18,
+            "pady": 10,
+        }
+        self.start_server_button = tk.Button(
+            action_panel,
+            text="START SERVER",
+            command=self._on_start_server,
+            background=palette["primary"],
+            activebackground="#003a04",
+            foreground="#ffffff",
+            activeforeground="#ffffff",
+            **button_style,
+        )
+        self.start_server_button.pack(fill="x", pady=(0, 8))
+        self.stop_server_button = tk.Button(
+            action_panel,
+            text="STOP SERVER",
+            command=self._on_stop_server,
+            state="disabled",
+            background=palette["card"],
+            activebackground="#ffdad6",
+            foreground=palette["danger"],
+            activeforeground=palette["danger"],
+            highlightbackground=palette["danger"],
+            highlightthickness=1,
+            **button_style,
+        )
+        self.stop_server_button.pack(fill="x")
+
+        dashboard = tk.Frame(content, background=palette["background"])
+        dashboard.pack(fill="both", expand=True)
+        dashboard.columnconfigure(0, weight=1)
+        dashboard.columnconfigure(1, weight=1)
+        dashboard.columnconfigure(2, weight=2)
+        dashboard.rowconfigure(0, weight=1)
+
+        diagnostics_card = card(dashboard)
+        diagnostics_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        section_title(diagnostics_card, "SYSTEM DIAGNOSTICS", palette["primary"])
+        self.environment_status_label = tk.Label(
+            diagnostics_card,
+            text="CHECKING ENVIRONMENT",
+            background=palette["card"],
+            foreground=palette["muted"],
+            font=("Segoe UI", 10, "bold"),
+            anchor="w",
+        )
+        self.environment_status_label.pack(fill="x", pady=(0, 12))
+        tk.Label(
+            diagnostics_card,
+            text="WSL 2 runtime\nSteamCMD installation\nPalServer executable",
+            background=palette["card"],
+            foreground=palette["muted"],
+            justify="left",
+            anchor="w",
+            font=("Segoe UI", 10),
+        ).pack(fill="x")
+        diagnostic_button = tk.Button(
+            diagnostics_card,
+            text="VIEW DIAGNOSTICS",
+            command=self._on_show_diagnostics,
+            background=palette["secondary"],
+            activebackground="#144688",
+            foreground="#ffffff",
+            activeforeground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            pady=8,
+        )
+        diagnostic_button.pack(fill="x", side="bottom")
+
+        network_card = card(dashboard)
+        network_card.grid(row=0, column=1, sticky="nsew", padx=8)
+        section_title(network_card, "NETWORK", palette["secondary"])
+        self.ip_label = tk.Label(
+            network_card,
+            text="Connection addresses appear when the server starts.",
+            background=palette["card"],
+            foreground=palette["secondary"],
+            font=("Consolas", 10),
+            anchor="w",
+            justify="left",
+            wraplength=260,
+        )
+        self.ip_label.pack(fill="x", pady=(0, 12))
+        self.network_status_label = tk.Label(
+            network_card,
+            text="Network checks will run automatically.",
+            background=palette["card"],
+            foreground=palette["muted"],
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify="left",
+            wraplength=260,
+        )
+        self.network_status_label.pack(fill="x")
+        self.update_server_button = tk.Button(
+            network_card,
+            text="UPDATE SERVER",
+            command=self._on_update_server,
+            background=palette["secondary"],
+            activebackground="#144688",
+            foreground="#ffffff",
+            activeforeground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            pady=8,
+        )
+        self.update_server_button.pack(fill="x", side="bottom")
+
+        console_card = card(dashboard)
+        console_card.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
+        section_title(console_card, "LIVE CONSOLE", palette["primary"])
+        self.output_text = scrolledtext.ScrolledText(
+            console_card,
+            height=14,
+            state="disabled",
+            background="#ffffff",
+            foreground="#111111",
+            insertbackground="#111111",
+            borderwidth=1,
+            relief="solid",
+            font=("Consolas", 10),
+            padx=10,
+            pady=8,
+        )
+        self.output_text.pack(fill="both", expand=True)
+        self.backup_worlds_button = tk.Button(
+            console_card,
+            text="BACK UP ALL WORLD SAVES",
+            command=self._on_backup_all_world_saves,
+            background=palette["secondary"],
+            activebackground="#144688",
+            foreground="#ffffff",
+            activeforeground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            pady=8,
+        )
+        self.backup_worlds_button.pack(fill="x", pady=(12, 0))
 
     def _perform_environment_check(self) -> None:
         """Verify WSL/SteamCMD/PalServer are ready, disabling start if not."""
         result = server.check_environment()
         if not result.ok:
+            self.environment_status_label.config(
+                text="ENVIRONMENT REQUIRES ATTENTION", foreground="#b00000"
+            )
             missing = "\n".join(f"- {item}" for item in result.missing)
             messagebox.showerror(
                 "缺少必要環境 / Missing Requirements",
@@ -238,6 +485,7 @@ class MainWindow(tk.Tk):
             self.start_server_button.config(state="disabled")
             self.update_server_button.config(state="disabled")
         else:
+            self.environment_status_label.config(text="ENVIRONMENT READY", foreground="#005408")
             # Only proceed to network check when the core environment is ready.
             self.after(200, self._perform_network_check)
 
@@ -278,6 +526,10 @@ class MainWindow(tk.Tk):
         self.start_server_button.config(state="disabled" if running else "normal")
         self.stop_server_button.config(state="normal" if running else "disabled")
         self.update_server_button.config(state="disabled" if running else "normal")
+        self.server_status_label.config(
+            text="SERVER ONLINE" if running else "SERVER STOPPED",
+            foreground="#005408" if running else "#40493d",
+        )
 
     def _append_output(self, text: str) -> None:
         """Append a line of text to the scrollable output box."""

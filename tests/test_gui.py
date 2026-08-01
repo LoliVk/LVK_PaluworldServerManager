@@ -241,8 +241,15 @@ def test_main_window_shows_backup_button_without_editor_button() -> None:
     window = _make_window()
 
     try:
-        button_texts = [str(child.cget("text")) for child in window.winfo_children() if isinstance(child, tk.Button)]
-        assert "備份所有世界存檔 / Backup All World Saves" in button_texts
+        def iter_widgets(widget: tk.Misc) -> object:
+            for child in widget.winfo_children():
+                yield child
+                yield from iter_widgets(child)
+
+        button_texts = [
+            str(widget.cget("text")) for widget in iter_widgets(window) if isinstance(widget, tk.Button)
+        ]
+        assert "BACK UP ALL WORLD SAVES" in button_texts
         assert "編輯世界設定 / Edit World Settings" not in button_texts
     finally:
         window.destroy()
