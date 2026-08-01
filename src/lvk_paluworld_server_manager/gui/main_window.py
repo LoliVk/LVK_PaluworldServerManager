@@ -214,9 +214,9 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.config = config or AppConfig()
         self.title(self.config.title)
-        self.geometry("1060x720")
+        self.geometry("1280x800")
         self.minsize(520, 640)
-        self.configure(background="#f3f3f3")
+        self.configure(background="#f9f9f9")
 
         self._process: subprocess.Popen[str] | None = None
         self._output_queue: queue.Queue[object] = queue.Queue()
@@ -237,13 +237,24 @@ class MainWindow(tk.Tk):
 
     def _build_navigation(self) -> None:
         """Create the fixed page container and its desktop/mobile navigation."""
-        palette = {"background": "#f3f3f3", "card": "#ffffff", "primary": "#005408", "muted": "#40493d"}
-        self._top_navigation = tk.Frame(self, background=palette["card"], height=48)
-        self._top_navigation.pack(fill="x", side="top")
-        self._page_container = tk.Frame(self, background=palette["background"])
+        palette = {"background": "#f9f9f9", "sidebar": "#f4f3f3", "card": "#ffffff", "primary": "#1a6e1a", "muted": "#40493d", "border": "#c0c9b9"}
+        self._app_shell = tk.Frame(self, background=palette["background"])
+        self._app_shell.pack(fill="both", expand=True)
+        self._sidebar = tk.Frame(self._app_shell, background=palette["sidebar"], width=288, highlightbackground=palette["border"], highlightthickness=1)
+        self._sidebar.pack(side="left", fill="y")
+        self._sidebar.pack_propagate(False)
+        tk.Label(self._sidebar, text=self.config.title.upper(), background=palette["sidebar"], foreground=palette["primary"], font=("Segoe UI", 14, "bold"), justify="left", wraplength=238).pack(anchor="w", padx=20, pady=(22, 28))
+        tk.Label(self._sidebar, text="OPERATIONS", background=palette["sidebar"], foreground=palette["muted"], font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=20, pady=(0, 8))
+        self._workspace = tk.Frame(self._app_shell, background=palette["background"])
+        self._workspace.pack(side="left", fill="both", expand=True)
+        self._top_header = tk.Frame(self._workspace, background=palette["card"], height=64, highlightbackground=palette["border"], highlightthickness=1)
+        self._top_header.pack(fill="x", side="top")
+        self._top_header.pack_propagate(False)
+        tk.Label(self._top_header, text="●  SYSTEM STATUS", background=palette["card"], foreground=palette["primary"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=24, pady=20)
+        tk.Label(self._top_header, text="Palworld Server Manager", background=palette["card"], foreground=palette["muted"], font=("Segoe UI", 9)).pack(side="left", pady=20)
+        self._page_container = tk.Frame(self._workspace, background=palette["background"])
         self._page_container.pack(fill="both", expand=True)
         self._bottom_navigation = tk.Frame(self, background=palette["card"], height=64)
-        self._bottom_navigation.pack(fill="x", side="bottom")
 
         self.dashboard_page = DashboardPage(
             self._page_container,
@@ -282,10 +293,10 @@ class MainWindow(tk.Tk):
         self.backup_worlds_button = self.backups_page.backup_worlds_button
 
         self._navigation_buttons: dict[str, list[tk.Button]] = {key: [] for key in self._pages}
-        for container, compact in ((self._top_navigation, False), (self._bottom_navigation, True)):
+        for container, compact in ((self._sidebar, False), (self._bottom_navigation, True)):
             for key, label in (("dashboard", "DASHBOARD"), ("backups", "BACKUPS"), ("world", "WORLD"), ("stats", "STATS")):
-                button = tk.Button(container, text=label, command=lambda selected=key: self.show_page(selected), relief="flat", borderwidth=0, background=palette["card"], foreground=palette["muted"], activebackground="#e5f4e2", activeforeground=palette["primary"], font=("Segoe UI", 8 if compact else 9, "bold"), padx=18, pady=18 if compact else 14)
-                button.pack(side="left", expand=compact, fill="x" if compact else "none", padx=4)
+                button = tk.Button(container, text=label, command=lambda selected=key: self.show_page(selected), relief="flat", borderwidth=0, anchor="w" if not compact else "center", background=palette["sidebar"] if not compact else palette["card"], foreground=palette["muted"], activebackground="#e5f4e2", activeforeground=palette["primary"], font=("Segoe UI", 8 if compact else 9, "bold"), padx=18, pady=12 if not compact else 18)
+                button.pack(side="left" if compact else "top", expand=compact, fill="x", padx=4 if compact else 12, pady=0 if compact else 2)
                 self._navigation_buttons[key].append(button)
         self.show_page("dashboard")
         self.bind("<Configure>", self._on_window_resize, add="+")
@@ -297,20 +308,24 @@ class MainWindow(tk.Tk):
         for key, buttons in self._navigation_buttons.items():
             selected = key == page_name
             for button in buttons:
-                button.configure(foreground="#005408" if selected else "#40493d", background="#e5f4e2" if selected else "#ffffff")
+                compact = button.master is self._bottom_navigation
+                button.configure(foreground="#1a6e1a" if selected else "#40493d", background="#e5f4e2" if selected else ("#ffffff" if compact else "#f4f3f3"))
 
     def _on_window_resize(self, event: tk.Event[tk.Misc]) -> None:
-        """Show top navigation on desktop and bottom navigation on compact layouts."""
+        """Show the reference sidebar on desktop and compact navigation on mobile."""
         if event.widget is not self:
             return
         if event.width < 768:
-            self._top_navigation.pack_forget()
+            self._sidebar.pack_forget()
+            self._top_header.pack_forget()
             if not self._bottom_navigation.winfo_manager():
                 self._bottom_navigation.pack(fill="x", side="bottom")
         else:
             self._bottom_navigation.pack_forget()
-            if not self._top_navigation.winfo_manager():
-                self._top_navigation.pack(fill="x", side="top", before=self._page_container)
+            if not self._sidebar.winfo_manager():
+                self._sidebar.pack(side="left", fill="y", before=self._workspace)
+            if not self._top_header.winfo_manager():
+                self._top_header.pack(fill="x", side="top", before=self._page_container)
 
     def _build_dashboard(self) -> None:
         """Build the high-density server dashboard without changing its behavior."""
