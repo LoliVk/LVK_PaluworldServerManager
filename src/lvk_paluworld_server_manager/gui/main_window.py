@@ -9,6 +9,7 @@ import threading
 import tkinter as tk
 from collections.abc import Callable
 from pathlib import Path
+from tkinter import font as tkfont
 from tkinter import messagebox, scrolledtext, ttk
 from typing import Any
 
@@ -32,6 +33,124 @@ _UPDATE_DONE = object()
 
 #: Palworld default game port shown alongside the IP address.
 _PALWORLD_PORT: int = 8211
+
+
+class RoundedPanel(tk.Canvas):
+    """A lightweight rounded surface that keeps standard Tk widgets inside it."""
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        background: str,
+        border: str,
+        radius: int = 12,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            parent,
+            background=background,
+            highlightthickness=0,
+            borderwidth=0,
+            **kwargs,
+        )
+        self._surface_background = background
+        self._surface_border = border
+        self._radius = radius
+        self.content = tk.Frame(self, background=background)
+        self._content_window = self.create_window(1, 1, anchor="nw", window=self.content)
+        self.bind("<Configure>", self._resize_surface, add="+")
+
+    def _resize_surface(self, event: tk.Event[tk.Misc]) -> None:
+        width = max(event.width, 2)
+        height = max(event.height, 2)
+        radius = min(self._radius, width // 2, height // 2)
+        self.delete("surface")
+        self.create_rectangle(
+            radius,
+            0,
+            width - radius,
+            height,
+            fill=self._surface_background,
+            outline="",
+            tags="surface",
+        )
+        self.create_rectangle(
+            0,
+            radius,
+            width,
+            height - radius,
+            fill=self._surface_background,
+            outline="",
+            tags="surface",
+        )
+        for x, y, start in (
+            (0, 0, 90),
+            (width - radius * 2, 0, 0),
+            (0, height - radius * 2, 180),
+            (width - radius * 2, height - radius * 2, 270),
+        ):
+            self.create_arc(
+                x,
+                y,
+                x + radius * 2,
+                y + radius * 2,
+                start=start,
+                extent=90,
+                fill=self._surface_background,
+                outline=self._surface_border,
+                tags="surface",
+            )
+        self.create_rectangle(
+            radius,
+            0,
+            width - radius,
+            height,
+            outline=self._surface_border,
+            tags="surface",
+        )
+        self.create_rectangle(
+            0,
+            radius,
+            width,
+            height - radius,
+            outline=self._surface_border,
+            tags="surface",
+        )
+        self.tag_lower("surface")
+        self.coords(self._content_window, 1, 1)
+        self.itemconfigure(self._content_window, width=max(width - 2, 1), height=max(height - 2, 1))
+
+
+class StatusPill(tk.Canvas):
+    """Small rounded status badge without adding a themed-widget dependency."""
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        text: str,
+        *,
+        foreground: str,
+        background: str,
+    ) -> None:
+        super().__init__(parent, height=22, highlightthickness=0, background=parent.cget("background"))
+        self._text = ""
+        self._foreground = foreground
+        self._background = background
+        self._font = tkfont.Font(family="Segoe UI", size=8, weight="bold")
+        self.set(text, foreground=foreground, background=background)
+
+    def set(self, text: str, *, foreground: str | None = None, background: str | None = None) -> None:
+        self._text = text
+        self._foreground = foreground or self._foreground
+        self._background = background or self._background
+        width = self._font.measure(text) + 22
+        self.configure(width=width)
+        self.delete("all")
+        self.create_oval(0, 0, 22, 22, fill=self._background, outline="")
+        self.create_oval(width - 22, 0, width, 22, fill=self._background, outline="")
+        self.create_rectangle(11, 0, width - 11, 22, fill=self._background, outline="")
+        self.create_text(width // 2, 11, text=text, font=self._font, fill=self._foreground)
 
 
 class BackupCompleteDialog(tk.Toplevel):
@@ -247,25 +366,24 @@ class MainWindow(tk.Tk):
             "danger": "#b00000",
         }
 
-        def card(parent: tk.Misc) -> tk.Frame:
-            return tk.Frame(
+        def card(parent: tk.Misc, **kwargs: Any) -> RoundedPanel:
+            return RoundedPanel(
                 parent,
                 background=palette["card"],
-                highlightbackground=palette["border"],
-                highlightthickness=1,
-                padx=16,
-                pady=16,
+                border="#e5e5e5",
+                radius=12,
+                **kwargs,
             )
 
-        def section_title(parent: tk.Misc, text: str, accent: str) -> None:
-            tk.Label(
-                parent,
-                text=text,
-                background=palette["card"],
-                foreground=accent,
-                font=("Segoe UI", 10, "bold"),
-                anchor="w",
-            ).pack(fill="x", pady=(0, 12))
+        def section_header(
+            parent: tk.Misc, icon: str, text: str, accent: str, trailing: tk.Widget | None = None
+        ) -> None:
+            header = tk.Frame(parent, background=palette["card"])
+            header.pack(fill="x", padx=20, pady=(18, 14))
+            tk.Label(header, text=icon, background=palette["card"], foreground=accent, font=("Segoe UI Symbol", 14)).pack(side="left", padx=(0, 8))
+            tk.Label(header, text=text, background=palette["card"], foreground=palette["text"], font=("Segoe UI", 9, "bold")).pack(side="left")
+            if trailing is not None:
+                trailing.pack(side="right")
 
         content = tk.Frame(self, background=palette["background"], padx=24, pady=20)
         content.pack(fill="both", expand=True)
@@ -279,7 +397,7 @@ class MainWindow(tk.Tk):
             foreground=palette["text"],
             font=("Segoe UI", 20, "bold"),
         ).pack(side="left")
-        tk.Label(
+        self.server_system_label = tk.Label(
             header,
             text="SYSTEM READY",
             background=palette["primary_light"],
@@ -287,7 +405,8 @@ class MainWindow(tk.Tk):
             font=("Segoe UI", 9, "bold"),
             padx=10,
             pady=5,
-        ).pack(side="right")
+        )
+        self.server_system_label.pack(side="right")
 
         hero = tk.Frame(content, background=palette["background"])
         hero.pack(fill="x", pady=(0, 16))
@@ -295,10 +414,10 @@ class MainWindow(tk.Tk):
         # Reserve a stable action column so the server status and controls
         # keep the 8:4 split shown in the dashboard reference.
         hero.columnconfigure(1, minsize=340)
-        server_card = card(hero)
+        server_card = card(hero, height=108)
         server_card.grid(row=0, column=0, sticky="nsew", padx=(0, 24))
-        hero_status = tk.Frame(server_card, background=palette["card"])
-        hero_status.pack(fill="both", expand=True)
+        hero_status = tk.Frame(server_card.content, background=palette["card"])
+        hero_status.pack(fill="both", expand=True, padx=20, pady=18)
         self.server_status_label = tk.Label(
             hero_status,
             text="SERVER STOPPED",
@@ -354,35 +473,34 @@ class MainWindow(tk.Tk):
         self.stop_server_button.pack(fill="x")
 
         dashboard = tk.Frame(content, background=palette["background"])
-        dashboard.pack(fill="both", expand=True)
+        dashboard.pack(fill="x")
         dashboard.columnconfigure(0, weight=1)
         dashboard.columnconfigure(1, weight=1)
-        dashboard.columnconfigure(2, weight=2)
-        dashboard.rowconfigure(0, weight=1)
+        dashboard.columnconfigure(2, weight=1)
 
-        diagnostics_card = card(dashboard)
-        diagnostics_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        section_title(diagnostics_card, "SYSTEM DIAGNOSTICS", palette["primary"])
+        diagnostics_card = card(dashboard, height=254)
+        diagnostics_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         self.environment_status_label = tk.Label(
-            diagnostics_card,
-            text="CHECKING ENVIRONMENT",
+            diagnostics_card.content,
+            text="REFRESHING...",
             background=palette["card"],
             foreground=palette["muted"],
-            font=("Segoe UI", 10, "bold"),
-            anchor="w",
+            font=("Segoe UI", 8, "bold"),
         )
-        self.environment_status_label.pack(fill="x", pady=(0, 12))
-        tk.Label(
-            diagnostics_card,
-            text="WSL 2 runtime\nSteamCMD installation\nPalServer executable",
-            background=palette["card"],
-            foreground=palette["muted"],
-            justify="left",
-            anchor="w",
-            font=("Segoe UI", 10),
-        ).pack(fill="x")
+        section_header(diagnostics_card.content, "◇", "DIAGNOSTICS", palette["primary"], self.environment_status_label)
+        self._environment_badges: dict[str, StatusPill] = {}
+        rows = tk.Frame(diagnostics_card.content, background=palette["card"])
+        rows.pack(fill="x", padx=20)
+        for icon, label, key in (("▹", "WSL 2 Runtime", "wsl"), ("↓", "SteamCMD", "steamcmd"), ("↻", "PalServer.exe", "palserver")):
+            row = tk.Frame(rows, background=palette["card"])
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=icon, width=2, background=palette["card"], foreground=palette["primary"], font=("Segoe UI Symbol", 11)).pack(side="left")
+            tk.Label(row, text=label, background=palette["card"], foreground=palette["text"], font=("Segoe UI", 10)).pack(side="left", padx=(8, 0))
+            badge = StatusPill(row, "CHECKING", foreground=palette["muted"], background="#f5f5f4")
+            badge.pack(side="right")
+            self._environment_badges[key] = badge
         diagnostic_button = tk.Button(
-            diagnostics_card,
+            diagnostics_card.content,
             text="VIEW DIAGNOSTICS",
             command=self._on_show_diagnostics,
             background=palette["secondary"],
@@ -393,35 +511,45 @@ class MainWindow(tk.Tk):
             font=("Segoe UI", 9, "bold"),
             pady=8,
         )
-        diagnostic_button.pack(fill="x", side="bottom")
+        diagnostic_button.pack(fill="x", side="bottom", padx=20, pady=(12, 18))
 
-        network_card = card(dashboard)
-        network_card.grid(row=0, column=1, sticky="nsew", padx=8)
-        section_title(network_card, "NETWORK", palette["secondary"])
+        network_card = card(dashboard, height=254)
+        network_card.grid(row=0, column=1, sticky="nsew", padx=5)
+        section_header(network_card.content, "⌘", "NETWORK", palette["secondary"])
+        self._network_value_labels: dict[str, tk.Label] = {}
+        network_rows = tk.Frame(network_card.content, background=palette["card"])
+        network_rows.pack(fill="x", padx=20)
+        for title, key in (("LAN IP (WSL)", "lan"), ("PUBLIC IP", "public")):
+            row = tk.Frame(network_rows, background="#faf9f8", highlightbackground="#eeeeee", highlightthickness=1)
+            row.pack(fill="x", pady=(0, 8))
+            tk.Label(row, text=title, background="#faf9f8", foreground=palette["muted"], font=("Segoe UI", 7, "bold")).pack(anchor="w", padx=10, pady=(7, 0))
+            value = tk.Label(row, text="WAITING FOR SERVER", background="#faf9f8", foreground=palette["secondary"], font=("Consolas", 9), anchor="w")
+            value.pack(fill="x", padx=10, pady=(1, 7))
+            self._network_value_labels[key] = value
+        port_row = tk.Frame(network_rows, background=palette["card"])
+        port_row.pack(fill="x", pady=(2, 0))
+        tk.Label(port_row, text=f"Port {_PALWORLD_PORT} (UDP)", background=palette["card"], foreground=palette["muted"], font=("Segoe UI", 9)).pack(side="left")
+        self._network_port_pill = StatusPill(port_row, "CHECKING", foreground=palette["muted"], background="#f5f5f4")
+        self._network_port_pill.pack(side="right")
         self.ip_label = tk.Label(
-            network_card,
-            text="Connection addresses appear when the server starts.",
+            network_card.content,
+            text="",
             background=palette["card"],
             foreground=palette["secondary"],
-            font=("Consolas", 10),
-            anchor="w",
-            justify="left",
-            wraplength=260,
         )
-        self.ip_label.pack(fill="x", pady=(0, 12))
         self.network_status_label = tk.Label(
-            network_card,
+            network_card.content,
             text="Network checks will run automatically.",
             background=palette["card"],
             foreground=palette["muted"],
-            font=("Segoe UI", 9),
+            font=("Segoe UI", 8),
             anchor="w",
             justify="left",
             wraplength=260,
         )
-        self.network_status_label.pack(fill="x")
+        self.network_status_label.pack(fill="x", padx=20, pady=(8, 0))
         self.update_server_button = tk.Button(
-            network_card,
+            network_card.content,
             text="UPDATE SERVER",
             command=self._on_update_server,
             background=palette["secondary"],
@@ -432,27 +560,28 @@ class MainWindow(tk.Tk):
             font=("Segoe UI", 9, "bold"),
             pady=8,
         )
-        self.update_server_button.pack(fill="x", side="bottom")
+        self.update_server_button.pack(fill="x", side="bottom", padx=20, pady=(8, 18))
 
-        console_card = card(dashboard)
-        console_card.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
-        section_title(console_card, "LIVE CONSOLE", palette["primary"])
+        console_card = card(dashboard, height=254)
+        console_card.grid(row=0, column=2, sticky="nsew", padx=(10, 0))
+        scrolling_pill = StatusPill(console_card.content, "● SCROLLING", foreground=palette["primary"], background=palette["primary_light"])
+        section_header(console_card.content, "▤", "LIVE CONSOLE", palette["primary"], scrolling_pill)
         self.output_text = scrolledtext.ScrolledText(
-            console_card,
-            height=14,
+            console_card.content,
+            height=8,
             state="disabled",
-            background="#ffffff",
-            foreground="#111111",
-            insertbackground="#111111",
+            background="#fafaf9",
+            foreground="#4f534f",
+            insertbackground="#4f534f",
             borderwidth=1,
             relief="solid",
-            font=("Consolas", 10),
-            padx=10,
-            pady=8,
+            font=("Consolas", 8),
+            padx=9,
+            pady=7,
         )
-        self.output_text.pack(fill="both", expand=True)
+        self.output_text.pack(fill="both", expand=True, padx=20)
         self.backup_worlds_button = tk.Button(
-            console_card,
+            console_card.content,
             text="BACK UP ALL WORLD SAVES",
             command=self._on_backup_all_world_saves,
             background=palette["secondary"],
@@ -463,11 +592,62 @@ class MainWindow(tk.Tk):
             font=("Segoe UI", 9, "bold"),
             pady=8,
         )
-        self.backup_worlds_button.pack(fill="x", pady=(12, 0))
+        self.backup_worlds_button.pack(fill="x", padx=20, pady=(10, 18))
+
+        self._dashboard_cards = (diagnostics_card, network_card, console_card)
+        self.bind("<Configure>", self._on_dashboard_resize, add="+")
+
+    def _on_dashboard_resize(self, event: tk.Event[tk.Misc]) -> None:
+        """Keep the cards legible when the desktop window becomes narrow."""
+        if event.widget is not self or not hasattr(self, "_dashboard_cards"):
+            return
+        diagnostics_card, network_card, console_card = self._dashboard_cards
+        if event.width < 1000:
+            diagnostics_card.grid_configure(row=0, column=0, columnspan=1, padx=(0, 10))
+            network_card.grid_configure(row=0, column=1, columnspan=1, padx=(10, 0))
+            console_card.grid_configure(row=1, column=0, columnspan=2, padx=0, pady=(16, 0))
+        else:
+            diagnostics_card.grid_configure(row=0, column=0, columnspan=1, padx=(0, 10), pady=0)
+            network_card.grid_configure(row=0, column=1, columnspan=1, padx=5, pady=0)
+            console_card.grid_configure(row=0, column=2, columnspan=1, padx=(10, 0), pady=0)
+
+    def _set_environment_badges(self, result: server.EnvironmentCheckResult) -> None:
+        """Map the existing environment check to the dashboard status rows."""
+        for key, available in {
+            "wsl": result.wsl_available,
+            "steamcmd": result.steamcmd_installed,
+            "palserver": result.palserver_installed,
+        }.items():
+            badge = self._environment_badges[key]
+            if available:
+                badge.set("READY", foreground="#005408", background="#e5f4e2")
+            else:
+                badge.set("ACTION REQ", foreground="#9b5a00", background="#fff0dc")
+
+    def _set_connection_summary(self, text: str, foreground: str) -> None:
+        """Retain the legacy label while projecting addresses into network rows."""
+        self.ip_label.config(text=text, foreground=foreground)
+        lan_value = "WAITING FOR SERVER"
+        public_value = "WAITING FOR SERVER"
+        if "查詢中" in text:
+            lan_value = "LOOKING UP ADDRESS..."
+            public_value = "LOOKING UP ADDRESS..."
+        elif "無法取得" in text:
+            lan_value = "UNAVAILABLE"
+            public_value = "UNAVAILABLE"
+        elif text:
+            for line in text.splitlines():
+                if line.startswith(("WSL IP：", "本機 LAN IP：")):
+                    lan_value = line.split("：", 1)[1]
+                elif line.startswith("公開 IP："):
+                    public_value = line.split("：", 1)[1]
+        self._network_value_labels["lan"].config(text=lan_value)
+        self._network_value_labels["public"].config(text=public_value)
 
     def _perform_environment_check(self) -> None:
         """Verify WSL/SteamCMD/PalServer are ready, disabling start if not."""
         result = server.check_environment()
+        self._set_environment_badges(result)
         if not result.ok:
             self._hide_start_options()
             self.environment_status_label.config(
@@ -517,6 +697,11 @@ class MainWindow(tk.Tk):
             lines.append("管理員權限：否，若要新增防火牆規則請重新啟動為系統管理員")
 
         self.network_status_label.config(text="\n".join(lines))
+        if self._network_port_pill is not None:
+            if net.firewall_rule_exists:
+                self._network_port_pill.set("● OPEN", foreground="#005408", background="#e5f4e2")
+            else:
+                self._network_port_pill.set("ACTION REQ", foreground="#9b5a00", background="#fff0dc")
 
     def _set_running_state(self, running: bool) -> None:
         """Toggle the Start/Stop buttons to reflect the server state."""
@@ -525,9 +710,13 @@ class MainWindow(tk.Tk):
         self.start_server_button.config(state="disabled" if running else "normal")
         self.stop_server_button.config(state="normal" if running else "disabled")
         self.update_server_button.config(state="disabled" if running else "normal")
-        self.server_status_label.config(
-            text="SERVER ONLINE" if running else "SERVER STOPPED",
-            foreground="#005408" if running else "#40493d",
+        state_text = "SERVER ONLINE" if running else "SERVER STOPPED"
+        state_color = "#005408" if running else "#40493d"
+        self.server_status_label.config(text=state_text, foreground=state_color)
+        self.server_system_label.config(
+            text="SYSTEM ONLINE" if running else "SYSTEM READY",
+            foreground=state_color,
+            background="#e5f4e2" if running else "#f5f5f4",
         )
 
     def _append_output(self, text: str) -> None:
@@ -548,7 +737,7 @@ class MainWindow(tk.Tk):
             threading.Thread(target=self._read_output, daemon=True).start()
             self._poll_job = self.after(100, self._poll_output_queue)
 
-        self.ip_label.config(text="連線位址：查詢中...", foreground="#1a6e1a")
+        self._set_connection_summary("連線位址：查詢中...", "#1a6e1a")
         threading.Thread(target=self._fetch_connection_info, daemon=True).start()
         self._ip_poll_job = self.after(100, self._poll_ip_queue)
 
@@ -641,7 +830,7 @@ class MainWindow(tk.Tk):
         self._hide_start_options()
         server.stop_server()
         self._set_running_state(False)
-        self.ip_label.config(text="")
+        self._set_connection_summary("", "#335ea1")
 
     def _on_update_server(self) -> None:
         """Update Palworld Dedicated Server through SteamCMD in a worker thread."""
@@ -818,11 +1007,11 @@ class MainWindow(tk.Tk):
                     lines.append(f"公開 IP：{public_ip}:{_PALWORLD_PORT}")
 
                 if lines:
-                    self.ip_label.config(text="連線位址：\n" + "\n".join(lines), foreground="#1a6e1a")
+                    self._set_connection_summary("連線位址：\n" + "\n".join(lines), "#1a6e1a")
                 else:
-                    self.ip_label.config(text="連線位址：無法取得", foreground="#b00000")
+                    self._set_connection_summary("連線位址：無法取得", "#b00000")
             else:
-                self.ip_label.config(text="連線位址：無法取得", foreground="#b00000")
+                self._set_connection_summary("連線位址：無法取得", "#b00000")
         else:
             self._ip_poll_job = self.after(100, self._poll_ip_queue)
 
