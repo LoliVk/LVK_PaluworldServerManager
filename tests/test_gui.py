@@ -40,28 +40,24 @@ def test_navigation_switches_pages_and_moves_backup_action_to_backups_page() -> 
         assert window.backup_worlds_button is window.backups_page.backup_worlds_button
         assert window.backup_worlds_button.winfo_toplevel() is window
         assert window.backup_worlds_button.master is not window.dashboard_page.console_card.content
+        assert all(window._navigation_icons[key] for key in window._pages)
     finally:
         window.destroy()
 
 
-def test_dashboard_breakpoints_do_not_reserve_an_unused_third_column() -> None:
+def test_dashboard_breakpoints_switch_between_single_and_two_column_layouts() -> None:
     window = _make_window()
 
     try:
         page = window.dashboard_page
         page._on_resize(SimpleNamespace(widget=page, width=520))
-        assert page.console_card.grid_info()["row"] == 2
-        assert page.dashboard.columnconfigure(2)["weight"] == 0
+        assert page.console_card.grid_info()["row"] == 3
+        assert page.console_card.grid_info()["column"] == 0
 
         page._on_resize(SimpleNamespace(widget=page, width=900))
         assert page.console_card.grid_info()["row"] == 1
-        assert page.console_card.grid_info()["columnspan"] == 2
-        assert page.dashboard.columnconfigure(2)["weight"] == 0
-
-        page._on_resize(SimpleNamespace(widget=page, width=1060))
-        assert page.console_card.grid_info()["row"] == 0
-        assert page.console_card.grid_info()["column"] == 2
-        assert page.dashboard.columnconfigure(2)["weight"] == 1
+        assert page.console_card.grid_info()["column"] == 0
+        assert page.diagnostics_card.grid_info()["column"] == 1
     finally:
         window.destroy()
 
@@ -71,11 +67,11 @@ def test_navigation_uses_bottom_bar_below_compact_breakpoint() -> None:
 
     try:
         window._on_window_resize(SimpleNamespace(widget=window, width=520))
-        assert not window._top_navigation.winfo_manager()
+        assert not window._sidebar.winfo_manager()
         assert window._bottom_navigation.winfo_manager() == "pack"
 
         window._on_window_resize(SimpleNamespace(widget=window, width=900))
-        assert window._top_navigation.winfo_manager() == "pack"
+        assert window._sidebar.winfo_manager() == "pack"
         assert not window._bottom_navigation.winfo_manager()
     finally:
         window.destroy()
@@ -130,6 +126,28 @@ def test_read_output_and_poll_queue_streams_process_stdout() -> None:
         assert window._poll_job is None
         assert str(window.start_server_button["state"]) == "normal"
         assert str(window.stop_server_button["state"]) == "disabled"
+    finally:
+        window.destroy()
+
+
+def test_console_controls_clear_output_and_resume_auto_scroll() -> None:
+    window = _make_window()
+
+    try:
+        assert window.clear_console_button.winfo_toplevel() is window
+        assert window.scroll_console_button.winfo_toplevel() is window
+        window._append_output("line1\n")
+        window.clear_console_button.invoke()
+        assert window.output_text.get("1.0", tk.END).strip() == ""
+        assert str(window.output_text["state"]) == "disabled"
+
+        window._pause_console_auto_scroll()
+        with patch.object(window.output_text, "see") as mock_see:
+            window._append_output("line2\n")
+            mock_see.assert_not_called()
+            window.scroll_console_button.invoke()
+            mock_see.assert_called_once_with(tk.END)
+        assert window._console_auto_scroll is True
     finally:
         window.destroy()
 

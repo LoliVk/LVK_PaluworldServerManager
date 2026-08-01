@@ -7,7 +7,7 @@ from collections.abc import Callable
 from tkinter import scrolledtext
 
 from ..config import AppConfig, create_app_message
-from .widgets import RoundedPanel, StatusPill
+from .widgets import CanvasIconButton, RoundedPanel, StatusPill
 
 PALETTE = {
     "background": "#f9f9f9", "card": "#eeeeee", "card_high": "#e8e8e8",
@@ -23,7 +23,8 @@ class DashboardPage(tk.Frame):
     def __init__(
         self, parent: tk.Misc, config: AppConfig, *, on_start: Callable[[], None],
         on_stop: Callable[[], None], on_update: Callable[[], None],
-        on_diagnostics: Callable[[], None],
+        on_diagnostics: Callable[[], None], on_clear_console: Callable[[], None],
+        on_scroll_console: Callable[[], None], on_console_manual_scroll: Callable[[], None],
     ) -> None:
         super().__init__(parent, background=PALETTE["background"])
         self.config = config
@@ -37,7 +38,7 @@ class DashboardPage(tk.Frame):
         self.content.bind("<Configure>", self._update_scroll_region, add="+")
         self._scroll_canvas.bind("<Configure>", self._resize_content, add="+")
         self.bind("<Configure>", self._on_resize, add="+")
-        self._build(on_start, on_stop, on_update, on_diagnostics)
+        self._build(on_start, on_stop, on_update, on_diagnostics, on_clear_console, on_scroll_console, on_console_manual_scroll)
 
     @staticmethod
     def _card(parent: tk.Misc, **kwargs: object) -> RoundedPanel:
@@ -49,7 +50,7 @@ class DashboardPage(tk.Frame):
         header.pack(fill="x", padx=1, pady=1)
         tk.Label(header, text=title, background=PALETTE["card_high"], foreground=PALETTE["muted"], font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=16, pady=10)
 
-    def _build(self, on_start: Callable[[], None], on_stop: Callable[[], None], on_update: Callable[[], None], on_diagnostics: Callable[[], None]) -> None:
+    def _build(self, on_start: Callable[[], None], on_stop: Callable[[], None], on_update: Callable[[], None], on_diagnostics: Callable[[], None], on_clear_console: Callable[[], None], on_scroll_console: Callable[[], None], on_console_manual_scroll: Callable[[], None]) -> None:
         self.layout = tk.Frame(self.content, background=PALETTE["background"])
         self.layout.pack(fill="both", expand=True)
         self.layout.columnconfigure(0, weight=2, minsize=500)
@@ -79,8 +80,20 @@ class DashboardPage(tk.Frame):
 
         self.console_card = self._card(self.layout, height=420)
         self.console_card.grid(row=1, column=0, sticky="nsew", padx=(0, 16))
-        self._section_header(self.console_card.content, "LIVE CONSOLE")
+        console_header = tk.Frame(self.console_card.content, background=PALETTE["card_high"])
+        console_header.pack(fill="x", padx=1, pady=1)
+        tk.Label(console_header, text="LIVE CONSOLE", background=PALETTE["card_high"], foreground=PALETTE["muted"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=16, pady=10)
+        console_actions = tk.Frame(console_header, background=PALETTE["card_high"])
+        console_actions.pack(side="right", padx=10, pady=4)
+        self.clear_console_button = CanvasIconButton(console_actions, icon="delete_sweep", tooltip="Clear Console", command=on_clear_console, foreground=PALETTE["muted"], hover_background="#e2e2e2")
+        self.clear_console_button.pack(side="left", padx=(0, 4))
+        self.scroll_console_button = CanvasIconButton(console_actions, icon="arrow_downward", tooltip="Auto-scroll", command=on_scroll_console, foreground=PALETTE["muted"], hover_background="#e2e2e2")
+        self.scroll_console_button.pack(side="left")
         self.output_text = scrolledtext.ScrolledText(self.console_card.content, height=16, state="disabled", background="#1e1e1e", foreground="#e2e2e2", insertbackground="#ffffff", borderwidth=0, font=("Consolas", 9), padx=12, pady=10)
+        self.output_text.bind("<MouseWheel>", on_console_manual_scroll, add="+")
+        self.output_text.bind("<Button-4>", on_console_manual_scroll, add="+")
+        self.output_text.bind("<Button-5>", on_console_manual_scroll, add="+")
+        self.output_text.vbar.bind("<Button-1>", on_console_manual_scroll, add="+")
         self.output_text.pack(fill="both", expand=True, padx=12, pady=(8, 12))
 
         self.network_card = self._card(self.layout, height=260)

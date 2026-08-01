@@ -23,6 +23,9 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+lvk_paluworld_server_manager = ["resources/fonts/*.ttf", "resources/fonts/*.txt"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

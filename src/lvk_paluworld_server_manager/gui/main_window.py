@@ -16,6 +16,7 @@ from typing import Any
 from .. import server, world_options
 from ..config import AppConfig, create_app_message
 from .pages import BackupsPage, DashboardPage, PlaceholderPage
+from .widgets import CanvasIconButton
 
 #: Sentinel placed on the output queue once the background process ends.
 _OUTPUT_DONE = object()
@@ -228,6 +229,7 @@ class MainWindow(tk.Tk):
         self._update_queue: queue.Queue[object] = queue.Queue()
         self._update_poll_job: str | None = None
         self._start_options_popup: tk.Toplevel | None = None
+        self._console_auto_scroll = True
 
         self._build_navigation()
         self.bind("<ButtonPress-1>", self._dismiss_start_options_on_main_click, add="+")
@@ -263,6 +265,9 @@ class MainWindow(tk.Tk):
             on_stop=self._on_stop_server,
             on_update=self._on_update_server,
             on_diagnostics=self._on_show_diagnostics,
+            on_clear_console=self._clear_console,
+            on_scroll_console=self._resume_console_auto_scroll,
+            on_console_manual_scroll=self._pause_console_auto_scroll,
         )
         self.backups_page = BackupsPage(self._page_container, on_backup=self._on_backup_all_world_saves)
         self.world_page = PlaceholderPage(self._page_container, "World")
@@ -290,13 +295,35 @@ class MainWindow(tk.Tk):
         self.ip_label = self.dashboard_page.ip_label
         self.network_status_label = self.dashboard_page.network_status_label
         self.output_text = self.dashboard_page.output_text
+        self.clear_console_button = self.dashboard_page.clear_console_button
+        self.scroll_console_button = self.dashboard_page.scroll_console_button
         self.backup_worlds_button = self.backups_page.backup_worlds_button
 
         self._navigation_buttons: dict[str, list[tk.Button]] = {key: [] for key in self._pages}
+        self._navigation_icons: dict[str, list[CanvasIconButton]] = {
+            key: [] for key in self._pages
+        }
+        self._navigation_rows: dict[str, list[tk.Frame]] = {key: [] for key in self._pages}
         for container, compact in ((self._sidebar, False), (self._bottom_navigation, True)):
-            for key, label in (("dashboard", "DASHBOARD"), ("backups", "BACKUPS"), ("world", "WORLD"), ("stats", "STATS")):
-                button = tk.Button(container, text=label, command=lambda selected=key: self.show_page(selected), relief="flat", borderwidth=0, anchor="w" if not compact else "center", background=palette["sidebar"] if not compact else palette["card"], foreground=palette["muted"], activebackground="#e5f4e2", activeforeground=palette["primary"], font=("Segoe UI", 8 if compact else 9, "bold"), padx=18, pady=12 if not compact else 18)
-                button.pack(side="left" if compact else "top", expand=compact, fill="x", padx=4 if compact else 12, pady=0 if compact else 2)
+            for key, label, icon in (
+                ("dashboard", "DASHBOARD", "dashboard"),
+                ("backups", "BACKUPS", "backup"),
+                ("world", "WORLD", "public"),
+                ("stats", "STATS", "query_stats"),
+            ):
+                command = lambda selected=key: self.show_page(selected)
+                if compact:
+                    button = tk.Button(container, text=label, command=command, relief="flat", borderwidth=0, anchor="center", background=palette["card"], foreground=palette["muted"], activebackground="#e5f4e2", activeforeground=palette["primary"], font=("Segoe UI", 8, "bold"), padx=18, pady=18)
+                    button.pack(side="left", expand=True, fill="x", padx=4)
+                else:
+                    row = tk.Frame(container, background=palette["sidebar"])
+                    row.pack(fill="x", padx=12, pady=2)
+                    icon_button = CanvasIconButton(row, icon=icon, tooltip=label.title(), command=command, foreground=palette["muted"], hover_background="#e2e2e2")
+                    icon_button.pack(side="left", padx=(10, 4), pady=4)
+                    self._navigation_icons[key].append(icon_button)
+                    self._navigation_rows[key].append(row)
+                    button = tk.Button(row, text=label, command=command, relief="flat", borderwidth=0, anchor="w", background=palette["sidebar"], foreground=palette["muted"], activebackground="#e5f4e2", activeforeground=palette["primary"], font=("Segoe UI", 9, "bold"), padx=4, pady=12)
+                    button.pack(side="left", fill="x", expand=True)
                 self._navigation_buttons[key].append(button)
         self.show_page("dashboard")
         self.bind("<Configure>", self._on_window_resize, add="+")
@@ -310,6 +337,12 @@ class MainWindow(tk.Tk):
             for button in buttons:
                 compact = button.master is self._bottom_navigation
                 button.configure(foreground="#1a6e1a" if selected else "#40493d", background="#e5f4e2" if selected else ("#ffffff" if compact else "#f4f3f3"))
+            sidebar_background = "#e5f4e2" if selected else "#f4f3f3"
+            sidebar_foreground = "#1a6e1a" if selected else "#40493d"
+            for row in self._navigation_rows[key]:
+                row.configure(background=sidebar_background)
+            for icon in self._navigation_icons[key]:
+                icon.set_colors(background=sidebar_background, foreground=sidebar_foreground)
 
     def _on_window_resize(self, event: tk.Event[tk.Misc]) -> None:
         """Show the reference sidebar on desktop and compact navigation on mobile."""
@@ -698,8 +731,24 @@ class MainWindow(tk.Tk):
         """Append a line of text to the scrollable output box."""
         self.output_text.config(state="normal")
         self.output_text.insert(tk.END, text)
-        self.output_text.see(tk.END)
+        if self._console_auto_scroll:
+            self.output_text.see(tk.END)
         self.output_text.config(state="disabled")
+
+    def _clear_console(self) -> None:
+        """Clear only the log text currently displayed in the live console."""
+        self.output_text.config(state="normal")
+        self.output_text.delete("1.0", tk.END)
+        self.output_text.config(state="disabled")
+
+    def _resume_console_auto_scroll(self) -> None:
+        """Return the console to the newest line and resume automatic following."""
+        self._console_auto_scroll = True
+        self.output_text.see(tk.END)
+
+    def _pause_console_auto_scroll(self, _event: tk.Event[tk.Misc] | None = None) -> None:
+        """Pause console following after the user starts navigating its history."""
+        self._console_auto_scroll = False
 
     def _on_start_server(self) -> None:
         """Handle the "Start Server" button click."""
