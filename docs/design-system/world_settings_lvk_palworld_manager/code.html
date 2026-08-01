@@ -1,0 +1,300 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={theme:{extend:{"colors":{"surface-container":"#EEEEEE","on-secondary":"#ffffff","inverse-on-surface":"#f1f1f0","on-secondary-fixed":"#001b3f","inverse-primary":"#8cd97e","on-error-container":"#93000a","tertiary":"#620938","surface-tint":"#236c20","surface":"#f9f9f9","secondary":"#335ea1","on-error":"#ffffff","error":"#BA1A1A","secondary-fixed":"#d7e3ff","tertiary-container":"#7f244f","on-background":"#1a1c1c","surface-variant":"#e2e2e2","secondary-container":"#8fb6ff","outline-variant":"#C0C9B9","primary-container":"#1A6E1A","primary-fixed-dim":"#8cd97e","error-container":"#ffdad6","outline":"#707A6C","surface-lowest":"#FFFFFF","tertiary-fixed":"#ffd9e4","inverse-surface":"#2f3131","surface-low":"#F3F3F3","on-primary-fixed-variant":"#005308","surface-container-low":"#f4f3f3","primary-fixed":"#a7f698","surface-container-highest":"#e2e2e2","secondary-fixed-dim":"#abc7ff","surface-bright":"#f9f9f9","tertiary-fixed-dim":"#ffb0cc","surface-highest":"#E2E2E2","on-tertiary-fixed-variant":"#7e234e","on-tertiary-fixed":"#3e0020","on-surface":"#1a1c1c","on-primary":"#ffffff","on-surface-variant":"#40493d","on-primary-container":"#7cc870","surface-high":"#E8E8E8","on-tertiary":"#ffffff","on-secondary-container":"#144688","on-secondary-fixed-variant":"#134687","surface-container-lowest":"#ffffff","background":"#F9F9F9","surface-dim":"#dadad9","on-tertiary-container":"#ff96be","primary":"#003a04","surface-container-high":"#e8e8e8","on-primary-fixed":"#002201"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"header-height":"64px","row-height":"32px","md":"12px","lg":"16px","sm":"8px","max-width":"1440px","xs":"4px","xl":"24px","sidebar-width":"288px"},"fontFamily":{"headline-lg":["Work Sans"],"modal-title":["Work Sans"],"body-sm":["Work Sans"],"body":["Work Sans"],"code-log":["JetBrains Mono"],"headline-lg-mobile":["Work Sans"],"micro":["Work Sans"],"display-title":["Work Sans"],"status-badge":["Work Sans"],"label-caps":["Work Sans"]},"fontSize":{"headline-lg":["32px",{"lineHeight":"40px","fontWeight":"700"}],"modal-title":["16px",{"lineHeight":"24px","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"body":["14px",{"lineHeight":"20px","fontWeight":"400"}],"code-log":["12px",{"lineHeight":"18px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","fontWeight":"700"}],"micro":["10px",{"lineHeight":"12px","fontWeight":"400"}],"display-title":["20px",{"lineHeight":"28px","fontWeight":"700"}],"status-badge":["11px",{"lineHeight":"14px","fontWeight":"600"}],"label-caps":["11px",{"lineHeight":"14px","letterSpacing":"0.05em","fontWeight":"700"}]}}}}</script><link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"></head><body class="bg-surface font-body text-on-surface"><aside class="fixed left-0 top-0 h-full w-sidebar-width bg-surface-container-low z-50 flex flex-col border-r border-outline-variant"><div class="h-header-height flex items-center px-xl gap-md"><img alt="logo.png" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLvJ_RS6G97q4s3mGYGcjOt1_1aZIikMn6yNLo8ELtTQwPSkwSvLbI7kpaSFdQpBSrvAWMLUp7pC9mg1zwmWcaOex4MAF-9y2q1BxYyushbKW7_v541rrhHqlgy2owtWz5xeH5b7yd3wyah31T5uwx4tpdRdVlF_cvbNyd_bVOc8yZJ1q4TI-MrntV1J3yz3KkQYDwr_fyRIcmAE0ppDVhU3QyAjylV4kEw3WuKNaSLtRkKrwR8Xu-zamqeFwUo4mg7DJQ4wVDFq6ww"><span class="font-headline-lg text-display-title text-primary uppercase">Paluworld Server Manager</span></div><nav class="flex-1 px-md py-xl space-y-xl" data-active-classes="bg-primary-container text-on-primary font-bold"><div class="space-y-sm"><p class="px-md font-label-caps text-label-caps text-on-surface-variant">OPERATIONS</p><div class="space-y-xs"><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors text-label-caps font-body" data-path="dashboard" href="#"><span class="material-symbols-outlined">dashboard</span>DASHBOARD</a><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors text-label-caps font-body" data-path="backups" href="#"><span class="material-symbols-outlined">backup</span>BACKUPS</a><a aria-current="page" class="bg-primary-container text-on-primary font-bold flex items-center gap-md px-md py-sm rounded text-label-caps font-body" data-path="world-settings" href="#"><span class="material-symbols-outlined">public</span>WORLD SETTINGS</a><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors text-label-caps font-body" data-path="stats-logs" href="#"><span class="material-symbols-outlined">query_stats</span>STATS &amp; LOGS</a></div></div><div class="space-y-sm"><p class="px-md font-label-caps text-label-caps text-on-surface-variant">SYSTEM</p><div class="space-y-xs"><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors text-label-caps font-body" data-path="about" href="#"><span class="material-symbols-outlined">info</span>ABOUT</a></div></div></nav></aside><div class="pl-sidebar-width w-full"><header class="fixed top-0 left-sidebar-width right-0 h-header-height bg-surface/80 backdrop-blur-xl border-b border-outline-variant z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-lg"><div class="flex items-center gap-xs px-sm py-xs bg-primary-container/10 rounded-full"><span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span><span class="font-status-badge text-status-badge text-primary">ONLINE</span></div><span class="font-body-sm text-body-sm text-on-surface-variant">v1.4.2 Stable</span></div><div class="flex items-center gap-xl"><button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined">settings</span></button><button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined">notifications</span></button></div></header><main class="pt-header-height bg-surface min-h-screen p-xl"><div class="flex flex-col w-full h-full max-w-max-width mx-auto">
+<div class="mb-lg w-full bg-error-container text-on-error-container p-lg rounded-xl flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-error">lock</span>
+<div>
+<p class="font-modal-title text-modal-title">Write Access Locked</p>
+<p class="font-body-sm text-body-sm opacity-90 mt-xs">The server is currently running. You cannot edit settings while the server is active.</p>
+</div>
+</div>
+<button class="px-lg py-sm bg-error text-on-error rounded font-label-caps text-label-caps hover:bg-error/90 transition-colors shadow-sm">STOP SERVER TO EDIT</button>
+</div>
+<div class="flex justify-between items-end mb-xl relative z-10">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">World Settings</h1>
+<p class="font-body text-body text-on-surface-variant mt-xs">Configure gameplay mechanics, world generation, and server rules.</p>
+</div>
+<div class="flex gap-md">
+<button class="px-lg py-sm bg-surface-container-high text-on-surface-variant rounded font-label-caps text-label-caps hover:bg-surface-container-highest transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">history</span>
+                REVERT CHANGES
+            </button>
+<button class="px-lg py-sm bg-primary text-on-primary rounded font-label-caps text-label-caps opacity-50 cursor-not-allowed shadow-sm flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">save</span>
+                SAVE SETTINGS
+            </button>
+</div>
+</div>
+<div class="w-full h-px bg-outline-variant mb-xl"></div>
+<div class="grid grid-cols-12 gap-xl pb-xl">
+<div class="col-span-12 xl:col-span-3">
+<div class="sticky top-[104px] space-y-sm">
+<p class="font-label-caps text-label-caps text-on-surface-variant px-md mb-md">CATEGORIES</p>
+<a class="flex items-center gap-md px-md py-sm bg-surface-container-high text-on-surface rounded-lg font-modal-title text-body-sm transition-colors cursor-pointer" href="#preset">
+<span class="material-symbols-outlined">tune</span>
+                    Difficulty Preset
+                </a>
+<a class="flex items-center gap-md px-md py-sm hover:bg-surface-container-low text-on-surface-variant rounded-lg font-body text-body transition-colors cursor-pointer" href="#player">
+<span class="material-symbols-outlined">person</span>
+                    Player &amp; Combat
+                </a>
+<a class="flex items-center gap-md px-md py-sm hover:bg-surface-container-low text-on-surface-variant rounded-lg font-body text-body transition-colors cursor-pointer" href="#world">
+<span class="material-symbols-outlined">public</span>
+                    World Environment
+                </a>
+<a class="flex items-center gap-md px-md py-sm hover:bg-surface-container-low text-on-surface-variant rounded-lg font-body text-body transition-colors cursor-pointer" href="#pals">
+<span class="material-symbols-outlined">pets</span>
+                    Pal Management
+                </a>
+<a class="flex items-center gap-md px-md py-sm hover:bg-surface-container-low text-on-surface-variant rounded-lg font-body text-body transition-colors cursor-pointer" href="#system">
+<span class="material-symbols-outlined">dns</span>
+                    System &amp; Security
+                </a>
+</div>
+</div>
+<div class="col-span-12 xl:col-span-9 space-y-xl">
+<div class="bg-surface-container-lowest p-xl rounded-2xl shadow-sm border border-outline-variant/30 relative overflow-hidden group" id="preset">
+<div class="absolute right-0 top-0 w-64 h-64 bg-primary-container/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none transition-opacity opacity-50 group-hover:opacity-100"></div>
+<div class="flex items-center gap-sm mb-lg relative z-10">
+<span class="material-symbols-outlined text-primary text-[24px]">tune</span>
+<h2 class="font-display-title text-display-title text-on-surface">Difficulty Preset</h2>
+</div>
+<p class="font-body text-body text-on-surface-variant mb-xl relative z-10">Quickly apply standard settings configurations. Selecting a preset will overwrite customized values below.</p>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-md relative z-10">
+<label class="relative cursor-not-allowed">
+<input class="peer sr-only" disabled="" name="difficulty" type="radio" value="casual">
+<div class="p-lg bg-surface-container-low border border-transparent rounded-xl peer-checked:bg-primary-container/10 peer-checked:border-primary peer-checked:shadow-sm transition-all opacity-60">
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Casual</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Easy survival, fast leveling, no death penalties.</p>
+</div>
+</label>
+<label class="relative cursor-not-allowed">
+<input checked="" class="peer sr-only" disabled="" name="difficulty" type="radio" value="normal">
+<div class="p-lg bg-surface-container-low border border-transparent rounded-xl peer-checked:bg-primary-container/10 peer-checked:border-primary peer-checked:shadow-sm transition-all opacity-60">
+<p class="font-modal-title text-modal-title text-on-surface mb-xs flex justify-between items-center">Normal <span class="material-symbols-outlined text-primary text-[18px]">check_circle</span></p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">The standard Palworld experience. Balanced.</p>
+</div>
+</label>
+<label class="relative cursor-not-allowed">
+<input class="peer sr-only" disabled="" name="difficulty" type="radio" value="hard">
+<div class="p-lg bg-surface-container-low border border-transparent rounded-xl peer-checked:bg-primary-container/10 peer-checked:border-primary peer-checked:shadow-sm transition-all opacity-60">
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Hard</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Scarce resources, tough enemies, harsh penalties.</p>
+</div>
+</label>
+<label class="relative cursor-not-allowed">
+<input class="peer sr-only" disabled="" name="difficulty" type="radio" value="custom">
+<div class="p-lg bg-surface-container-low border border-transparent rounded-xl peer-checked:bg-primary-container/10 peer-checked:border-primary peer-checked:shadow-sm transition-all opacity-60">
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Custom</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Fine-tune every aspect of the world to your liking.</p>
+</div>
+</label>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-xl rounded-2xl shadow-sm border border-outline-variant/30 relative overflow-hidden group" id="player">
+<div class="flex items-center justify-between mb-xl relative z-10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[24px]">person</span>
+<h2 class="font-display-title text-display-title text-on-surface">Player &amp; Combat</h2>
+</div>
+</div>
+<div class="space-y-xl relative z-10">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Exp Rate</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">1.0</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-md">Multiplier for experience gained by players and Pals.</p>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="5.0" min="0.1" step="0.1" type="range" value="1.0">
+<div class="flex justify-between mt-sm font-body-sm text-micro text-on-surface-variant">
+<span class="">0.1x</span>
+<span class="">5.0x</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Player Damage Rate</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">1.0</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-md">Multiplier for damage dealt by players.</p>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="5.0" min="0.1" step="0.1" type="range" value="1.0">
+<div class="flex justify-between mt-sm font-body-sm text-micro text-on-surface-variant">
+<span class="">0.1x</span>
+<span class="">5.0x</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none flex items-center justify-between">
+<div>
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Death Penalty</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Determine what is lost upon player death.</p>
+</div>
+<select class="bg-surface border border-outline-variant text-on-surface text-body-sm rounded px-md py-sm focus:outline-none focus:border-secondary cursor-not-allowed" disabled="">
+<option value="none">None</option>
+<option value="items">Drop Items</option>
+<option selected="" value="items_equipment">Drop Items &amp; Equipment</option>
+<option value="all">Drop All (Items, Equip, Pals)</option>
+</select>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-xl rounded-2xl shadow-sm border border-outline-variant/30 relative overflow-hidden group" id="world">
+<div class="flex items-center justify-between mb-xl relative z-10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[24px]">public</span>
+<h2 class="font-display-title text-display-title text-on-surface">World Environment</h2>
+</div>
+</div>
+<div class="space-y-xl relative z-10">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none flex items-center justify-between">
+<div>
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Enable Multiplayer</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Allow other players to join the server.</p>
+</div>
+<div class="w-10 h-5 bg-primary rounded-full relative shadow-inner">
+<div class="absolute right-0.5 top-0.5 w-4 h-4 bg-on-primary rounded-full shadow-sm"></div>
+</div>
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none flex items-center justify-between">
+<div>
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">PvP</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Enable player vs player combat.</p>
+</div>
+<div class="w-10 h-5 bg-outline-variant rounded-full relative shadow-inner">
+<div class="absolute left-0.5 top-0.5 w-4 h-4 bg-surface rounded-full shadow-sm"></div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Day Time Speed</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">1.0</span>
+</div>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="5.0" min="0.1" step="0.1" type="range" value="1.0">
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Night Time Speed</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">1.0</span>
+</div>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="5.0" min="0.1" step="0.1" type="range" value="1.0">
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-xl rounded-2xl shadow-sm border border-outline-variant/30 relative overflow-hidden group" id="pals">
+<div class="flex items-center justify-between mb-xl relative z-10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[24px]">pets</span>
+<h2 class="font-display-title text-display-title text-on-surface">Pal Management</h2>
+</div>
+</div>
+<div class="space-y-xl relative z-10">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Pal Capture Rate</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">1.0</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-md">Multiplier for the base capture chance.</p>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="5.0" min="0.1" step="0.1" type="range" value="1.0">
+<div class="flex justify-between mt-sm font-body-sm text-micro text-on-surface-variant">
+<span class="">0.1x</span>
+<span class="">5.0x</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Pal Spawn Rate</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">1.0</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-md">Multiplier for the number of Pals that spawn.</p>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="5.0" min="0.1" step="0.1" type="range" value="1.0">
+<div class="flex justify-between mt-sm font-body-sm text-micro text-on-surface-variant">
+<span class="">0.1x</span>
+<span class="">5.0x</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-xl rounded-2xl shadow-sm border border-outline-variant/30 relative overflow-hidden group" id="system">
+<div class="flex items-center justify-between mb-xl relative z-10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[24px]">dns</span>
+<h2 class="font-display-title text-display-title text-on-surface">System &amp; Security</h2>
+</div>
+</div>
+<div class="space-y-xl relative z-10">
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none flex items-center justify-between">
+<div>
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Admin Password</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Password required to gain admin privileges in-game.</p>
+</div>
+<input class="bg-surface border border-outline-variant text-on-surface text-body-sm rounded px-md py-sm focus:outline-none focus:border-secondary w-48 cursor-not-allowed font-code-log" disabled="" type="password" value="*********">
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none flex items-center justify-between">
+<div>
+<p class="font-modal-title text-modal-title text-on-surface mb-xs">Server Password</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Password required for players to join the server.</p>
+</div>
+<input class="bg-surface border border-outline-variant text-on-surface text-body-sm rounded px-md py-sm focus:outline-none focus:border-secondary w-48 cursor-not-allowed font-code-log" disabled="" placeholder="No password set" type="password" value="">
+</div>
+<div class="bg-surface-container-low p-lg rounded-xl opacity-60 pointer-events-none">
+<div class="flex justify-between items-center mb-md">
+<label class="font-modal-title text-modal-title text-on-surface">Max Players</label>
+<span class="font-code-log text-code-log bg-surface px-sm py-xs rounded text-on-surface-variant">32</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-md">Maximum number of concurrent players allowed.</p>
+<input class="w-full h-1 bg-outline-variant rounded-lg appearance-none cursor-not-allowed" disabled="" max="32" min="1" step="1" type="range" value="32">
+<div class="flex justify-between mt-sm font-body-sm text-micro text-on-surface-variant">
+<span class="">1</span>
+<span class="">32</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelectorAll('.font-modal-title').forEach(el => {
+                if(el.parentElement.tagName === 'A') {
+                    el.classList.replace('font-modal-title', 'font-body');
+                    el.classList.replace('bg-surface-container-high', 'hover:bg-surface-container-low');
+                    el.classList.replace('text-on-surface', 'text-on-surface-variant');
+                }
+            });
+            this.classList.replace('font-body', 'font-modal-title');
+            this.classList.replace('hover:bg-surface-container-low', 'bg-surface-container-high');
+            this.classList.replace('text-on-surface-variant', 'text-on-surface');
+            
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        });
+    });
+    
+    // Simulate setting Active state for nav (Normally done by routing/shell logic)
+    document.querySelectorAll('aside nav a').forEach(nav => {
+        if(nav.getAttribute('data-path') === 'world-settings') {
+             nav.className = nav.parentElement.parentElement.parentElement.getAttribute('data-active-classes') + " flex items-center gap-md px-md py-sm rounded font-label-caps text-label-caps";
+        }
+    });
+</script></main></div>
+
+
+
+
+
+
+
+</body></html>

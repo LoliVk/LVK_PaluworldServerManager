@@ -1,0 +1,234 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={theme:{extend:{"colors":{"surface-container":"#EEEEEE","on-secondary":"#ffffff","inverse-on-surface":"#f1f1f0","on-secondary-fixed":"#001b3f","inverse-primary":"#8cd97e","on-error-container":"#93000a","tertiary":"#620938","surface-tint":"#236c20","surface":"#f9f9f9","secondary":"#335ea1","on-error":"#ffffff","error":"#BA1A1A","secondary-fixed":"#d7e3ff","tertiary-container":"#7f244f","on-background":"#1a1c1c","surface-variant":"#e2e2e2","secondary-container":"#8fb6ff","outline-variant":"#C0C9B9","primary-container":"#1A6E1A","primary-fixed-dim":"#8cd97e","error-container":"#ffdad6","outline":"#707A6C","surface-lowest":"#FFFFFF","tertiary-fixed":"#ffd9e4","inverse-surface":"#2f3131","surface-low":"#F3F3F3","on-primary-fixed-variant":"#005308","surface-container-low":"#f4f3f3","primary-fixed":"#a7f698","surface-container-highest":"#e2e2e2","secondary-fixed-dim":"#abc7ff","surface-bright":"#f9f9f9","tertiary-fixed-dim":"#ffb0cc","surface-highest":"#E2E2E2","on-tertiary-fixed-variant":"#7e234e","on-tertiary-fixed":"#3e0020","on-surface":"#1a1c1c","on-primary":"#ffffff","on-surface-variant":"#40493d","on-primary-container":"#7cc870","surface-high":"#E8E8E8","on-tertiary":"#ffffff","on-secondary-container":"#144688","on-secondary-fixed-variant":"#134687","surface-container-lowest":"#ffffff","background":"#F9F9F9","surface-dim":"#dadad9","on-tertiary-container":"#ff96be","primary":"#003a04","surface-container-high":"#e8e8e8","on-primary-fixed":"#002201"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"header-height":"64px","row-height":"32px","md":"12px","lg":"16px","sm":"8px","max-width":"1440px","xs":"4px","xl":"24px","sidebar-width":"288px"},"fontFamily":{"headline-lg":["Work Sans"],"modal-title":["Work Sans"],"body-sm":["Work Sans"],"body":["Work Sans"],"code-log":["JetBrains Mono"],"headline-lg-mobile":["Work Sans"],"micro":["Work Sans"],"display-title":["Work Sans"],"status-badge":["Work Sans"],"label-caps":["Work Sans"]},"fontSize":{"headline-lg":["32px",{"lineHeight":"40px","fontWeight":"700"}],"modal-title":["16px",{"lineHeight":"24px","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"body":["14px",{"lineHeight":"20px","fontWeight":"400"}],"code-log":["12px",{"lineHeight":"18px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","fontWeight":"700"}],"micro":["10px",{"lineHeight":"12px","fontWeight":"400"}],"display-title":["20px",{"lineHeight":"28px","fontWeight":"700"}],"status-badge":["11px",{"lineHeight":"14px","fontWeight":"600"}],"label-caps":["11px",{"lineHeight":"14px","letterSpacing":"0.05em","fontWeight":"700"}]}}}}</script><link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"></head><body class="bg-surface font-body text-on-surface"><aside class="fixed left-0 top-0 h-full w-sidebar-width bg-surface-container-low z-50 flex flex-col border-r border-outline-variant"><div class="h-header-height flex items-center px-xl gap-md"><img alt="logo.png" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLvJ_RS6G97q4s3mGYGcjOt1_1aZIikMn6yNLo8ELtTQwPSkwSvLbI7kpaSFdQpBSrvAWMLUp7pC9mg1zwmWcaOex4MAF-9y2q1BxYyushbKW7_v541rrhHqlgy2owtWz5xeH5b7yd3wyah31T5uwx4tpdRdVlF_cvbNyd_bVOc8yZJ1q4TI-MrntV1J3yz3KkQYDwr_fyRIcmAE0ppDVhU3QyAjylV4kEw3WuKNaSLtRkKrwR8Xu-zamqeFwUo4mg7DJQ4wVDFq6ww"><span class="font-headline-lg text-display-title text-primary uppercase">Paluworld Server Manager</span></div><nav class="flex-1 px-md py-xl space-y-xl" data-active-classes="bg-primary-container text-on-primary font-bold"><div class="space-y-sm"><p class="px-md font-label-caps text-label-caps text-on-surface-variant">OPERATIONS</p><div class="space-y-xs"><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="dashboard" href="#"><span class="material-symbols-outlined">dashboard</span>DASHBOARD</a><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="backups" href="#"><span class="material-symbols-outlined">backup</span>BACKUPS</a><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="world-settings" href="#"><span class="material-symbols-outlined">public</span>WORLD SETTINGS</a><a class="flex items-center gap-md px-md py-sm rounded transition-colors font-label-caps text-label-caps bg-primary-container text-on-primary font-bold" data-path="stats-logs" href="#"><span class="material-symbols-outlined">query_stats</span>STATS &amp; LOGS</a></div></div><div class="space-y-sm"><p class="px-md font-label-caps text-label-caps text-on-surface-variant">SYSTEM</p><div class="space-y-xs"><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="about" href="#"><span class="material-symbols-outlined">info</span>ABOUT</a></div></div></nav></aside><div class="pl-sidebar-width w-full"><header class="fixed top-0 left-sidebar-width right-0 h-header-height bg-surface/80 backdrop-blur-xl border-b border-outline-variant z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-lg"><div class="flex items-center gap-xs px-sm py-xs bg-primary-container/10 rounded-full"><span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span><span class="font-status-badge text-status-badge text-primary">ONLINE</span></div><span class="font-body-sm text-body-sm text-on-surface-variant">v1.4.2 Stable</span></div><div class="flex items-center gap-md"><button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined">settings</span></button><button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined">notifications</span></button></div></header><main class="pt-header-height bg-surface min-h-screen p-xl"><div class="flex flex-col w-full h-full gap-xl">
+<!-- Hero / Top Summary -->
+<section class="flex w-full items-center justify-between">
+<div class="flex flex-col gap-xs">
+<h1 class="font-headline-lg text-headline-lg text-on-surface uppercase tracking-tight">Stats &amp; Telemetry</h1>
+<p class="font-body text-body text-on-surface-variant flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse shadow-[0_0_8px_rgba(26,110,26,0.6)]"></span>
+                Node-01 • Uptime: 14d 08h 22m
+            </p>
+</div>
+<div class="flex items-center gap-md">
+<button class="h-8 px-md rounded bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors font-label-caps text-label-caps flex items-center gap-sm shadow-sm">
+<span class="material-symbols-outlined text-[16px]">download</span> EXPORT CSV
+            </button>
+<button class="h-8 px-md rounded bg-secondary text-on-secondary hover:bg-secondary-container hover:text-on-secondary-container transition-colors font-label-caps text-label-caps flex items-center gap-sm shadow-sm">
+<span class="material-symbols-outlined text-[16px]">refresh</span> REFRESH
+            </button>
+</div>
+</section>
+<!-- Key Metrics Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
+<!-- Metric: TPS -->
+<div class="bg-surface-container rounded-xl p-lg flex flex-col justify-between h-32 relative overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-default">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-primary-container/10 rounded-full blur-xl group-hover:bg-primary-container/20 transition-colors"></div>
+<div class="flex justify-between items-start z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant">CURRENT TPS</span>
+<span class="material-symbols-outlined text-primary-container opacity-50">speed</span>
+</div>
+<div class="z-10">
+<div class="flex items-baseline gap-sm">
+<span class="font-headline-lg text-headline-lg text-on-surface">59.8</span>
+<span class="font-body-sm text-body-sm text-primary-container">/ 60.0</span>
+</div>
+<div class="w-full h-1 bg-surface-variant mt-sm rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[99%]"></div>
+</div>
+</div>
+</div>
+<!-- Metric: Entities -->
+<div class="bg-surface-container rounded-xl p-lg flex flex-col justify-between h-32 relative overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-default">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-secondary/10 rounded-full blur-xl group-hover:bg-secondary/20 transition-colors"></div>
+<div class="flex justify-between items-start z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant">TOTAL ENTITIES</span>
+<span class="material-symbols-outlined text-secondary opacity-50">view_in_ar</span>
+</div>
+<div class="z-10 flex flex-col gap-xs">
+<div class="flex items-baseline gap-sm">
+<span class="font-headline-lg text-headline-lg text-on-surface">14,282</span>
+</div>
+<div class="flex items-center gap-xs text-primary-container">
+<span class="material-symbols-outlined text-[14px]">arrow_downward</span>
+<span class="font-status-badge text-status-badge">4% vs last hour</span>
+</div>
+</div>
+</div>
+<!-- Metric: Memory -->
+<div class="bg-surface-container rounded-xl p-lg flex flex-col justify-between h-32 relative overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-default">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-tertiary/10 rounded-full blur-xl group-hover:bg-tertiary/20 transition-colors"></div>
+<div class="flex justify-between items-start z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant">MEMORY USAGE</span>
+<span class="material-symbols-outlined text-tertiary opacity-50">memory</span>
+</div>
+<div class="z-10">
+<div class="flex items-baseline gap-sm">
+<span class="font-headline-lg text-headline-lg text-on-surface">14.1</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">GB / 32GB</span>
+</div>
+<div class="w-full h-1 bg-surface-variant mt-sm rounded-full overflow-hidden flex">
+<div class="h-full bg-secondary w-[44%]"></div>
+</div>
+</div>
+</div>
+<!-- Metric: Players -->
+<div class="bg-surface-container rounded-xl p-lg flex flex-col justify-between h-32 relative overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-default">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-primary/10 rounded-full blur-xl group-hover:bg-primary/20 transition-colors"></div>
+<div class="flex justify-between items-start z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant">ONLINE PLAYERS</span>
+<span class="material-symbols-outlined text-primary opacity-50">group</span>
+</div>
+<div class="z-10 flex flex-col gap-xs">
+<div class="flex items-baseline gap-sm">
+<span class="font-headline-lg text-headline-lg text-on-surface">124</span>
+</div>
+<div class="flex items-center gap-xs text-secondary">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+<span class="font-status-badge text-status-badge">Peak: 156 (2h ago)</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Charts Section -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- CPU Performance Chart Placeholder -->
+<div class="bg-surface-container-low rounded-xl p-lg flex flex-col gap-md shadow-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-modal-title text-modal-title text-on-surface">CPU Performance (24h)</h3>
+<span class="font-label-caps text-label-caps text-on-surface-variant px-sm py-xs bg-surface-container rounded">AVG 38%</span>
+</div>
+<!-- Decorative SVG Line Chart -->
+<div class="w-full h-48 relative rounded-lg bg-surface-container flex items-end overflow-hidden">
+<svg class="w-full h-full preserve-3d" preserveAspectRatio="none" viewBox="0 0 100 40">
+<path class="text-secondary/20" d="M0 40 L0 30 C10 28, 15 35, 25 32 C35 29, 40 15, 50 18 C60 21, 65 30, 75 25 C85 20, 90 10, 100 15 L100 40 Z" fill="currentColor"></path>
+<path class="text-secondary" d="M0 30 C10 28, 15 35, 25 32 C35 29, 40 15, 50 18 C60 21, 65 30, 75 25 C85 20, 90 10, 100 15" fill="none" stroke="currentColor" stroke-width="1.5"></path>
+</svg>
+<!-- Grid Lines Overlay -->
+<div class="absolute inset-0 flex flex-col justify-between py-sm pointer-events-none opacity-20">
+<div class="w-full h-px bg-on-surface-variant"></div>
+<div class="w-full h-px bg-on-surface-variant"></div>
+<div class="w-full h-px bg-on-surface-variant"></div>
+</div>
+</div>
+</div>
+<!-- Network Throughput Chart Placeholder -->
+<div class="bg-surface-container-low rounded-xl p-lg flex flex-col gap-md shadow-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-modal-title text-modal-title text-on-surface">Network Throughput</h3>
+<div class="flex gap-sm">
+<span class="font-label-caps text-label-caps text-primary-container px-sm py-xs bg-primary-container/10 rounded">IN: 4.2 MB/s</span>
+<span class="font-label-caps text-label-caps text-secondary px-sm py-xs bg-secondary/10 rounded">OUT: 12.8 MB/s</span>
+</div>
+</div>
+<!-- Decorative SVG Area Chart -->
+<div class="w-full h-48 relative rounded-lg bg-surface-container flex items-end overflow-hidden">
+<svg class="w-full h-full preserve-3d absolute inset-0 mix-blend-multiply" preserveAspectRatio="none" viewBox="0 0 100 40">
+<path class="text-primary-container/30" d="M0 40 L0 25 C20 20, 30 35, 50 28 C70 21, 80 15, 100 20 L100 40 Z" fill="currentColor"></path>
+</svg>
+<svg class="w-full h-full preserve-3d absolute inset-0 mix-blend-multiply" preserveAspectRatio="none" viewBox="0 0 100 40">
+<path class="text-secondary/30" d="M0 40 L0 35 C20 30, 30 15, 50 22 C70 29, 80 10, 100 8 L100 40 Z" fill="currentColor"></path>
+</svg>
+<div class="absolute inset-0 flex flex-col justify-between py-sm pointer-events-none opacity-20">
+<div class="w-full h-px bg-on-surface-variant"></div>
+<div class="w-full h-px bg-on-surface-variant"></div>
+<div class="w-full h-px bg-on-surface-variant"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Bottom Section: Logs and Image -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-lg h-[400px]">
+<!-- Recent System Events Log -->
+<div class="lg:col-span-2 bg-surface-container-low rounded-xl flex flex-col overflow-hidden shadow-sm">
+<div class="h-12 border-b border-outline-variant flex items-center px-lg bg-surface-container sticky top-0 z-10 justify-between">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant">RECENT SYSTEM EVENTS</h3>
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant cursor-pointer hover:text-on-surface">filter_list</span>
+</div>
+<div class="flex-1 overflow-y-auto p-md font-code-log text-code-log space-y-xs bg-surface-lowest">
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded">
+<span class="text-on-surface-variant shrink-0 w-24">14:32:01.44</span>
+<span class="text-secondary w-16 shrink-0">[INFO]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">World save complete. Took 144ms.</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded">
+<span class="text-on-surface-variant shrink-0 w-24">14:28:15.12</span>
+<span class="text-secondary w-16 shrink-0">[INFO]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">Player 'DriftWood88' connected from 192.168.1.xxx</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-error-container/20 group px-xs rounded bg-error-container/10">
+<span class="text-on-surface-variant shrink-0 w-24">14:15:02.89</span>
+<span class="text-error w-16 shrink-0 font-bold">[WARN]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">Entity overload detected in chunk [14, -8]. 450+ entities. Skipping tick.</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded">
+<span class="text-on-surface-variant shrink-0 w-24">14:00:00.01</span>
+<span class="text-primary-container w-16 shrink-0">[BACKUP]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">Scheduled backup started: daily_snapshot_14.tar.gz</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded">
+<span class="text-on-surface-variant shrink-0 w-24">13:45:22.77</span>
+<span class="text-secondary w-16 shrink-0">[INFO]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">Player 'StarGazer' disconnected. Session time: 4h 12m.</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded">
+<span class="text-on-surface-variant shrink-0 w-24">13:10:05.33</span>
+<span class="text-secondary w-16 shrink-0">[INFO]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">Garbage collection cycle completed. Freed 1.2GB.</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded">
+<span class="text-on-surface-variant shrink-0 w-24">12:32:01.44</span>
+<span class="text-secondary w-16 shrink-0">[INFO]</span>
+<span class="text-on-surface truncate group-hover:whitespace-normal group-hover:break-all">World save complete. Took 152ms.</span>
+</div>
+<div class="flex gap-md py-xs hover:bg-surface-container-lowest group px-xs rounded opacity-50">
+<span class="text-on-surface-variant shrink-0 w-24">...</span>
+<span class="text-secondary w-16 shrink-0"></span>
+<span class="text-on-surface truncate">Scroll for older logs</span>
+</div>
+</div>
+</div>
+<!-- Decorative / Contextual Image Card -->
+<div class="bg-surface-container-low rounded-xl relative overflow-hidden shadow-sm flex flex-col">
+<div class="p-lg pb-0 relative z-10 flex-1">
+<h3 class="font-modal-title text-modal-title text-on-surface">Server Topology</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Visualizing cluster connections.</p>
+</div>
+<div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-surface-container-low to-transparent z-10"></div>
+<!-- Reference Logo Image embedded as a textural background element -->
+<div class="absolute inset-0 opacity-20 bg-center bg-no-repeat bg-contain translate-y-12 scale-150 mix-blend-luminosity" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuAloShyl9WW-mxvNWMgC00I_12pQbC3iShWgyk1-65pyE7eiFnIyj32k1B0zaZih6EVsT3l42kFCCm7dhLq80j7yCJIyeWf03zt22jORq1nb2SRlNj4AoDViGPBKYO2Z_TdgzPSTDcusk1zB-VdDKJ4jZDvoMiwMTPEmDrLVmkBaTFYqCHobvWUtVICcaYRjTIKuzdSmM_7U_RzChP-QC2kLcWSHuM-21O5nD6XS3FOzDZegaLbPHq4qbvdMO-1Y5tK8ak&quot;);"></div>
+<!-- Decorative Node Visuals over the image -->
+<div class="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
+<div class="w-32 h-32 border border-primary-container/30 rounded-full animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute w-48 h-48 border border-secondary/20 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+<div class="absolute w-2 h-2 bg-primary rounded-full shadow-[0_0_10px_#003a04]"></div>
+</div>
+</div>
+</section>
+</div>
+<script>
+    // Minimal script to ensure the correct active state is set in the sidebar 
+    // (Assuming the sidebar is outside our control but we can manipulate it if present)
+    document.addEventListener('DOMContentLoaded', () => {
+        const sidebarNav = document.querySelector('nav[data-active-classes]');
+        if (sidebarNav) {
+            const activeClasses = sidebarNav.getAttribute('data-active-classes').split(' ');
+            const links = sidebarNav.querySelectorAll('a');
+            
+            links.forEach(link => {
+                // Reset all
+                link.className = 'flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps';
+                
+                // Set active based on data-path
+                if (link.getAttribute('data-path') === 'stats-logs') {
+                    link.className = `flex items-center gap-md px-md py-sm rounded transition-colors font-label-caps text-label-caps ${activeClasses.join(' ')}`;
+                }
+            });
+        }
+    });
+</script></main></div>
+
+
+
+
+
+</body></html>

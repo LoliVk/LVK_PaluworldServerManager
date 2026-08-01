@@ -1,0 +1,162 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={theme:{extend:{"colors":{"surface-container":"#EEEEEE","on-secondary":"#ffffff","inverse-on-surface":"#f1f1f0","on-secondary-fixed":"#001b3f","inverse-primary":"#8cd97e","on-error-container":"#93000a","tertiary":"#620938","surface-tint":"#236c20","surface":"#f9f9f9","secondary":"#335ea1","on-error":"#ffffff","error":"#BA1A1A","secondary-fixed":"#d7e3ff","tertiary-container":"#7f244f","on-background":"#1a1c1c","surface-variant":"#e2e2e2","secondary-container":"#8fb6ff","outline-variant":"#C0C9B9","primary-container":"#1A6E1A","primary-fixed-dim":"#8cd97e","error-container":"#ffdad6","outline":"#707A6C","surface-lowest":"#FFFFFF","tertiary-fixed":"#ffd9e4","inverse-surface":"#2f3131","surface-low":"#F3F3F3","on-primary-fixed-variant":"#005308","surface-container-low":"#f4f3f3","primary-fixed":"#a7f698","surface-container-highest":"#e2e2e2","secondary-fixed-dim":"#abc7ff","surface-bright":"#f9f9f9","tertiary-fixed-dim":"#ffb0cc","surface-highest":"#E2E2E2","on-tertiary-fixed-variant":"#7e234e","on-tertiary-fixed":"#3e0020","on-surface":"#1a1c1c","on-primary":"#ffffff","on-surface-variant":"#40493d","on-primary-container":"#7cc870","surface-high":"#E8E8E8","on-tertiary":"#ffffff","on-secondary-container":"#144688","on-secondary-fixed-variant":"#134687","surface-container-lowest":"#ffffff","background":"#F9F9F9","surface-dim":"#dadad9","on-tertiary-container":"#ff96be","primary":"#003a04","surface-container-high":"#e8e8e8","on-primary-fixed":"#002201"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"header-height":"64px","row-height":"32px","md":"12px","lg":"16px","sm":"8px","max-width":"1440px","xs":"4px","xl":"24px","sidebar-width":"288px"},"fontFamily":{"headline-lg":["Work Sans"],"modal-title":["Work Sans"],"body-sm":["Work Sans"],"body":["Work Sans"],"code-log":["JetBrains Mono"],"headline-lg-mobile":["Work Sans"],"micro":["Work Sans"],"display-title":["Work Sans"],"status-badge":["Work Sans"],"label-caps":["Work Sans"]},"fontSize":{"headline-lg":["32px",{"lineHeight":"40px","fontWeight":"700"}],"modal-title":["16px",{"lineHeight":"24px","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"body":["14px",{"lineHeight":"20px","fontWeight":"400"}],"code-log":["12px",{"lineHeight":"18px","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","fontWeight":"700"}],"micro":["10px",{"lineHeight":"12px","fontWeight":"400"}],"display-title":["20px",{"lineHeight":"28px","fontWeight":"700"}],"status-badge":["11px",{"lineHeight":"14px","fontWeight":"600"}],"label-caps":["11px",{"lineHeight":"14px","letterSpacing":"0.05em","fontWeight":"700"}]}}}}</script><link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"></head><body class="bg-surface font-body text-on-surface" data-mode="connect"><aside class="fixed left-0 top-0 h-full w-sidebar-width bg-surface-container-low z-50 flex flex-col border-r border-outline-variant"><div class="h-header-height flex items-center px-xl gap-md"><img alt="logo.png" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLvJ_RS6G97q4s3mGYGcjOt1_1aZIikMn6yNLo8ELtTQwPSkwSvLbI7kpaSFdQpBSrvAWMLUp7pC9mg1zwmWcaOex4MAF-9y2q1BxYyushbKW7_v541rrhHqlgy2owtWz5xeH5b7yd3wyah31T5uwx4tpdRdVlF_cvbNyd_bVOc8yZJ1q4TI-MrntV1J3yz3KkQYDwr_fyRIcmAE0ppDVhU3QyAjylV4kEw3WuKNaSLtRkKrwR8Xu-zamqeFwUo4mg7DJQ4wVDFq6ww"><span class="font-headline-lg text-display-title text-primary uppercase">Paluworld Server Manager</span></div><nav class="flex-1 px-md py-xl space-y-xl" data-active-classes="bg-primary-container text-on-primary font-bold"><div class="space-y-sm"><p class="px-md font-label-caps text-label-caps text-on-surface-variant">OPERATIONS</p><div class="space-y-xs"><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="dashboard" href="#"><span class="material-symbols-outlined">dashboard</span>DASHBOARD</a><a aria-current="page" class="flex items-center gap-md px-md py-sm rounded transition-colors bg-primary-container text-on-primary font-bold" data-path="backups" href="#"><span class="material-symbols-outlined">backup</span>BACKUPS</a><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="world-settings" href="#"><span class="material-symbols-outlined">public</span>WORLD SETTINGS</a><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="stats-logs" href="#"><span class="material-symbols-outlined">query_stats</span>STATS &amp; LOGS</a></div></div><div class="space-y-sm"><p class="px-md font-label-caps text-label-caps text-on-surface-variant">SYSTEM</p><div class="space-y-xs"><a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-caps text-label-caps" data-path="about" href="#"><span class="material-symbols-outlined">info</span>ABOUT</a></div></div></nav></aside><div class="pl-sidebar-width w-full"><header class="fixed top-0 left-sidebar-width right-0 h-header-height bg-surface/80 backdrop-blur-xl border-b border-outline-variant z-40 flex items-center justify-between px-xl"><div class="flex items-center gap-lg"><div class="flex items-center gap-xs px-sm py-xs bg-primary-container/10 rounded-full"><span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span><span class="font-status-badge text-status-badge text-primary">ONLINE</span></div><span class="font-body-sm text-body-sm text-on-surface-variant">v1.4.2 Stable</span></div><div class="flex items-center gap-xl"><button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined">settings</span></button><button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined">notifications</span></button></div></header><main class="pt-header-height bg-surface min-h-screen p-xl"><div class="flex flex-col w-full h-full p-xl gap-xl">
+<div class="flex items-end justify-between w-full relative">
+<div class="flex flex-col gap-sm relative z-10 -ml-md -mt-md">
+<h1 class="font-display-title text-display-title tracking-tight [writing-mode:horizontal-tb] mix-blend-exclusion text-on-surface">BACKUP OPERATIONS</h1>
+<p class="font-body text-body text-on-surface-variant max-w-2xl bg-surface/50 backdrop-blur p-sm rounded">Manage system snapshots, automated retention policies, and disaster recovery archives.</p>
+</div>
+<div class="flex gap-md absolute right-0 top-0">
+<button class="bg-secondary text-on-secondary px-lg py-sm rounded-lg font-label-caps text-label-caps flex items-center gap-xs hover:-translate-y-1 transition-transform shadow-md"><span class="material-symbols-outlined">add</span> CREATE SNAPSHOT</button>
+<button class="bg-surface-container text-on-surface hover:bg-surface-container-high px-lg py-sm rounded-lg font-label-caps text-label-caps flex items-center gap-xs transition-colors"><span class="material-symbols-outlined">cloud_download</span> RESTORE</button>
+</div>
+<div class="absolute right-xl -top-xl w-64 h-64 bg-secondary/10 rounded-full blur-3xl -z-10"></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-xl relative">
+<div class="col-span-1 lg:col-span-2 flex flex-col gap-xl">
+<div class="grid grid-cols-3 gap-md">
+<div class="bg-surface-container p-md rounded-xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-sm opacity-20 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-primary text-4xl">inventory_2</span></div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">TOTAL ARCHIVES</p>
+<p class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">24</p>
+</div>
+<div class="bg-surface-container p-md rounded-xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-sm opacity-20 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-secondary text-4xl">storage</span></div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">STORAGE USED</p>
+<p class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">4.2 GB</p>
+<div class="w-full bg-surface-variant h-1 mt-sm rounded-full overflow-hidden"><div class="bg-secondary h-full" style="width: 42%"></div></div>
+</div>
+<div class="bg-primary-container/10 p-md rounded-xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-sm opacity-20 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-primary text-4xl">update</span></div>
+<p class="font-label-caps text-label-caps text-primary mb-xs">LAST AUTO-BACKUP</p>
+<p class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">15 mins ago</p>
+<p class="font-micro text-micro text-on-surface-variant mt-xs">Next run: 45 mins</p>
+</div>
+</div>
+<div class="bg-surface-lowest rounded-xl shadow-lg flex flex-col overflow-hidden relative">
+<div class="absolute -left-lg top-1/2 -translate-y-1/2 font-label-caps text-label-caps text-surface-variant [writing-mode:vertical-rl] tracking-widest text-4xl whitespace-nowrap opacity-50 z-0">LEDGER</div>
+<div class="p-md bg-surface-container-low flex justify-between items-center z-10 relative">
+<h2 class="font-display-title text-display-title text-on-surface flex items-center gap-sm"><span class="material-symbols-outlined">list_alt</span> ARCHIVE LEDGER</h2>
+<div class="flex gap-sm">
+<input class="bg-surface px-md py-xs rounded font-body-sm text-body-sm text-on-surface outline-none w-48 focus:ring-1 focus:ring-secondary transition-all" placeholder="Search archives..." type="text">
+<button class="text-on-surface-variant hover:text-on-surface transition-colors p-xs"><span class="material-symbols-outlined text-[20px]">filter_list</span></button>
+</div>
+</div>
+<div class="flex-1 overflow-auto z-10 relative bg-surface-lowest">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-lowest sticky top-0">
+<tr>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-md py-sm">ID</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-md py-sm">DATE</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-md py-sm">TYPE</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-md py-sm">SIZE</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-md py-sm">STATUS</th>
+<th class="font-label-caps text-label-caps text-on-surface-variant px-md py-sm text-right">ACTIONS</th>
+</tr>
+</thead>
+<tbody class="font-code-log text-code-log text-on-surface divide-y divide-surface-container-highest">
+<tr class="hover:bg-surface-container-low transition-colors group h-row-height">
+<td class="px-md py-xs">SNAP-0428-A</td>
+<td class="px-md py-xs">2023-10-27 14:00</td>
+<td class="px-md py-xs"><span class="px-2 py-1 bg-secondary-container text-on-secondary-container rounded font-label-caps text-micro">AUTO</span></td>
+<td class="px-md py-xs">245 MB</td>
+<td class="px-md py-xs"><span class="flex items-center gap-xs text-primary"><span class="material-symbols-outlined text-[16px]">check_circle</span> Verified</span></td>
+<td class="px-md py-xs text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-secondary hover:text-secondary-container p-1"><span class="material-symbols-outlined text-[18px]">download</span></button>
+<button class="text-error hover:text-error-container p-1 ml-sm"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group h-row-height">
+<td class="px-md py-xs">SNAP-0427-M</td>
+<td class="px-md py-xs">2023-10-26 18:30</td>
+<td class="px-md py-xs"><span class="px-2 py-1 bg-tertiary-container text-on-tertiary-container rounded font-label-caps text-micro">MANUAL</span></td>
+<td class="px-md py-xs">260 MB</td>
+<td class="px-md py-xs"><span class="flex items-center gap-xs text-primary"><span class="material-symbols-outlined text-[16px]">check_circle</span> Verified</span></td>
+<td class="px-md py-xs text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-secondary hover:text-secondary-container p-1"><span class="material-symbols-outlined text-[18px]">download</span></button>
+<button class="text-error hover:text-error-container p-1 ml-sm"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group h-row-height bg-error-container/10">
+<td class="px-md py-xs text-error">SNAP-0426-A</td>
+<td class="px-md py-xs text-error">2023-10-25 14:00</td>
+<td class="px-md py-xs"><span class="px-2 py-1 bg-secondary-container text-on-secondary-container rounded font-label-caps text-micro">AUTO</span></td>
+<td class="px-md py-xs text-error">--</td>
+<td class="px-md py-xs"><span class="flex items-center gap-xs text-error"><span class="material-symbols-outlined text-[16px]">error</span> Failed IO</span></td>
+<td class="px-md py-xs text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-on-surface-variant hover:text-on-surface p-1"><span class="material-symbols-outlined text-[18px]">info</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group h-row-height">
+<td class="px-md py-xs">SNAP-0425-A</td>
+<td class="px-md py-xs">2023-10-24 14:00</td>
+<td class="px-md py-xs"><span class="px-2 py-1 bg-secondary-container text-on-secondary-container rounded font-label-caps text-micro">AUTO</span></td>
+<td class="px-md py-xs">242 MB</td>
+<td class="px-md py-xs"><span class="flex items-center gap-xs text-primary"><span class="material-symbols-outlined text-[16px]">check_circle</span> Verified</span></td>
+<td class="px-md py-xs text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-secondary hover:text-secondary-container p-1"><span class="material-symbols-outlined text-[18px]">download</span></button>
+<button class="text-error hover:text-error-container p-1 ml-sm"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="col-span-1 flex flex-col gap-lg">
+<div class="bg-surface-container rounded-xl p-lg shadow-md relative overflow-hidden">
+<div class="absolute right-0 top-0 w-32 h-32 bg-secondary/5 rounded-bl-full -z-10"></div>
+<h3 class="font-modal-title text-modal-title text-on-surface mb-md flex items-center gap-xs"><span class="material-symbols-outlined">policy</span> BACKUP POLICY</h3>
+<div class="space-y-md">
+<div class="bg-surface p-sm rounded border border-outline-variant/30 flex justify-between items-center hover:-translate-x-1 transition-transform cursor-pointer">
+<div>
+<p class="font-label-caps text-label-caps text-on-surface">AUTOMATED BACKUPS</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Enabled (Hourly)</p>
+</div>
+<div class="w-8 h-4 bg-primary rounded-full relative">
+<div class="w-4 h-4 bg-surface rounded-full absolute right-0 shadow-sm"></div>
+</div>
+</div>
+<div class="bg-surface p-sm rounded border border-outline-variant/30 group hover:border-secondary transition-colors cursor-text">
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs group-hover:text-secondary">RETENTION LIMIT</p>
+<div class="flex items-center gap-sm">
+<input class="bg-transparent font-code-log text-code-log text-on-surface w-12 outline-none" type="number" value="30">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Archives</span>
+</div>
+</div>
+<div class="bg-surface p-sm rounded border border-outline-variant/30 group hover:border-secondary transition-colors cursor-text">
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs group-hover:text-secondary">STORAGE QUOTA</p>
+<div class="flex items-center gap-sm">
+<input class="bg-transparent font-code-log text-code-log text-on-surface w-12 outline-none" type="number" value="10">
+<span class="font-body-sm text-body-sm text-on-surface-variant">GB</span>
+</div>
+</div>
+<button class="w-full bg-surface-variant hover:bg-surface-container-highest text-on-surface font-label-caps text-label-caps py-sm rounded transition-colors mt-sm">EDIT SCHEDULE</button>
+</div>
+</div>
+<div class="bg-surface-container-low rounded-xl p-lg border border-outline-variant/50 relative overflow-hidden">
+<img alt="LVK Manager Logo" class="absolute -bottom-8 -right-8 w-48 h-48 opacity-5 grayscale mix-blend-multiply pointer-events-none" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3NIbjiRmKZeDvKergmBnmP8ABo2An7hbjShJjiyy9REzj0aDoJMIzQxjN20jw-tWIr6Vvm6Pcy-jcdFUF9n5Eo1_G4oYVEmyXcaChqebEbbW5hOROATx1KBsVli1BH7EWwZR6wX1eUtvmdciUXC_DyGUP3suenlzQx67diqljbLX1OB1eN6AdCuEyMU0D2LTiKRPOHs1HAMcVTYpyc1cHFa0kQFhaYfhm5LtE6ibWoHNRfeBi8AO3FdvjY933pe7ksmE">
+<h3 class="font-modal-title text-modal-title text-on-surface mb-sm">STORAGE HEURISTICS</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-md">At current growth rate (avg +15MB/day), quota will be reached in approx 45 days. Consider pruning older manual archives.</p>
+<div class="h-24 w-full bg-surface rounded-lg relative overflow-hidden flex items-end px-xs pb-xs gap-1 group">
+<div class="w-full h-1/4 bg-primary/20 rounded-t hover:bg-primary/40 transition-colors"></div>
+<div class="w-full h-1/3 bg-primary/30 rounded-t hover:bg-primary/50 transition-colors"></div>
+<div class="w-full h-2/5 bg-primary/40 rounded-t hover:bg-primary/60 transition-colors"></div>
+<div class="w-full h-1/2 bg-primary/50 rounded-t hover:bg-primary/70 transition-colors"></div>
+<div class="w-full h-3/5 bg-primary/60 rounded-t hover:bg-primary/80 transition-colors"></div>
+<div class="w-full h-2/3 bg-primary/70 rounded-t hover:bg-primary/90 transition-colors"></div>
+<div class="w-full h-3/4 bg-primary/80 rounded-t hover:bg-primary transition-colors"></div>
+<div class="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-surface/10 to-transparent pointer-events-none"></div>
+</div>
+<p class="font-micro text-micro text-on-surface-variant text-right mt-xs group-hover:text-on-surface transition-colors">Proj. Growth 7d</p>
+</div>
+</div>
+</div>
+</div></main></div>
+
+
+
+
+
+
+
+</body></html>

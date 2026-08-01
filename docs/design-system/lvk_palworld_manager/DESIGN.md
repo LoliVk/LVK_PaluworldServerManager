@@ -1,3 +1,127 @@
+---
+name: LVK Palworld Manager
+colors:
+  surface: '#f9f9f9'
+  surface-dim: '#dadad9'
+  surface-bright: '#f9f9f9'
+  surface-container-lowest: '#ffffff'
+  surface-container-low: '#f4f3f3'
+  surface-container: '#EEEEEE'
+  surface-container-high: '#e8e8e8'
+  surface-container-highest: '#e2e2e2'
+  on-surface: '#1a1c1c'
+  on-surface-variant: '#40493D'
+  inverse-surface: '#2f3131'
+  inverse-on-surface: '#f1f1f0'
+  outline: '#707A6C'
+  outline-variant: '#C0C9B9'
+  surface-tint: '#236c20'
+  primary: '#003a04'
+  on-primary: '#ffffff'
+  primary-container: '#1A6E1A'
+  on-primary-container: '#7cc870'
+  inverse-primary: '#8cd97e'
+  secondary: '#335ea1'
+  on-secondary: '#ffffff'
+  secondary-container: '#8fb6ff'
+  on-secondary-container: '#144688'
+  tertiary: '#620938'
+  on-tertiary: '#ffffff'
+  tertiary-container: '#7f244f'
+  on-tertiary-container: '#ff96be'
+  error: '#BA1A1A'
+  on-error: '#ffffff'
+  error-container: '#FFDAD6'
+  on-error-container: '#93000A'
+  primary-fixed: '#a7f698'
+  primary-fixed-dim: '#8cd97e'
+  on-primary-fixed: '#002201'
+  on-primary-fixed-variant: '#005308'
+  secondary-fixed: '#d7e3ff'
+  secondary-fixed-dim: '#abc7ff'
+  on-secondary-fixed: '#001b3f'
+  on-secondary-fixed-variant: '#134687'
+  tertiary-fixed: '#ffd9e4'
+  tertiary-fixed-dim: '#ffb0cc'
+  on-tertiary-fixed: '#3e0020'
+  on-tertiary-fixed-variant: '#7e234e'
+  background: '#F9F9F9'
+  on-background: '#1a1c1c'
+  surface-variant: '#e2e2e2'
+  surface-lowest: '#FFFFFF'
+  surface-low: '#F3F3F3'
+  surface-high: '#E8E8E8'
+  surface-highest: '#E2E2E2'
+typography:
+  display-title:
+    fontFamily: Work Sans
+    fontSize: 20px
+    fontWeight: '700'
+    lineHeight: 28px
+  headline-lg:
+    fontFamily: Work Sans
+    fontSize: 32px
+    fontWeight: '700'
+    lineHeight: 40px
+  headline-lg-mobile:
+    fontFamily: Work Sans
+    fontSize: 24px
+    fontWeight: '700'
+    lineHeight: 32px
+  modal-title:
+    fontFamily: Work Sans
+    fontSize: 16px
+    fontWeight: '600'
+    lineHeight: 24px
+  body:
+    fontFamily: Work Sans
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+  body-sm:
+    fontFamily: Work Sans
+    fontSize: 12px
+    fontWeight: '400'
+    lineHeight: 16px
+  label-caps:
+    fontFamily: Work Sans
+    fontSize: 11px
+    fontWeight: '700'
+    lineHeight: 14px
+    letterSpacing: 0.05em
+  status-badge:
+    fontFamily: Work Sans
+    fontSize: 11px
+    fontWeight: '600'
+    lineHeight: 14px
+  micro:
+    fontFamily: Work Sans
+    fontSize: 10px
+    fontWeight: '400'
+    lineHeight: 12px
+  code-log:
+    fontFamily: JetBrains Mono
+    fontSize: 12px
+    fontWeight: '400'
+    lineHeight: 18px
+rounded:
+  sm: 0.125rem
+  DEFAULT: 0.25rem
+  md: 0.375rem
+  lg: 0.5rem
+  xl: 0.75rem
+  full: 9999px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 12px
+  lg: 16px
+  xl: 24px
+  sidebar-width: 288px
+  header-height: 64px
+  row-height: 32px
+  max-width: 1440px
+---
 
 # LVK Palworld Server Manager Design System
 
@@ -40,8 +164,6 @@ Use these rules for new UI work so the application remains a calm, operational c
 | `on-error-container` | `#93000A` | Error banner content |
 | `tertiary` | `#620938` | Limited tertiary categorisation only |
 
-Use opacity variants of semantic tokens for restrained emphasis, for example `primary` at 5–10% for active status backgrounds and `outline-variant` at 10–30% for dividers.
-
 ### 3.2 Typography
 
 | Role | Font | Size / line height | Weight | Usage |
@@ -55,8 +177,6 @@ Use opacity variants of semantic tokens for restrained emphasis, for example `pr
 | Status badge | Work Sans | 11 / 14 px | 600 | Compact status text |
 | Micro helper | Work Sans | 10 / 12 px | 400 | Versions and low-priority hints |
 | Code/log | JetBrains Mono | 12 / 18 px | 400 | Paths, timestamps, metrics, terminal output |
-
-Use uppercase labels with approximately `0.05em` letter spacing. Page titles may use tight tracking. Do not use monospaced type for ordinary prose.
 
 ### 3.3 Spacing, shape, and elevation
 
@@ -72,16 +192,12 @@ Use uppercase labels with approximately `0.05em` letter spacing. Page titles may
 
 - Default radius: 2 px; compact corners: 4 px; cards and controls: 8 px; pills: 12 px or full.
 - Cards use white or near-white surfaces, optional `outline-variant` border at low opacity, and a subtle shadow only when separation is needed.
-- Avoid heavy shadows, gradients, or large rounded corners.
 
 ## 4. Layout
 
-- Desktop navigation uses a 288 px left sidebar and a fixed 64 px top header. A responsive header navigation is acceptable where a sidebar is not used.
+- Desktop navigation uses a 288 px left sidebar and a fixed 64 px top header.
 - Content starts below the header and keeps a 24 px outer margin on desktop.
 - Maximum wide-content width is 1440 px.
-- Use responsive grids: a 12-column desktop grid, collapsing to one column on smaller viewports.
-- Keep page headers above page content. They may include a category label, title, contextual metadata, and page-level actions.
-- Cards use 16–24 px padding and 16 px inter-card gaps.
 
 ## 5. Components and states
 
@@ -95,48 +211,21 @@ Use uppercase labels with approximately `0.05em` letter spacing. Page titles may
 
 - **Primary action:** `secondary` background with white text. Use for Save, Restore, and other routine committed actions.
 - **Secondary action:** neutral or subtle primary treatment, with a visible label.
-- **Icon action:** padded square icon control; reveal stronger neutral or error background on hover.
-- **Destructive action:** use error styling only for actions that can remove or overwrite data; place inside a confirmation flow when the result is irreversible.
-- Provide hover and pressed feedback through small colour/brightness changes; do not depend on colour alone to explain intent.
+- **Icon action:** padded square icon control.
+- **Destructive action:** use error styling only for actions that can remove or overwrite data.
 
 ### Cards, tables, and data
 
 - Use `surface-container-lowest` for primary cards.
 - Divide sections and table rows with low-opacity `outline-variant` lines.
 - Table headers are uppercase labels; values such as timestamps, paths, sizes, and telemetry use `code-log` typography.
-- Use horizontal overflow for wide tables rather than clipping data.
 
 ### Forms
 
 - Inputs use a `surface-container` fill, compact radius, and clear focus border in `secondary`.
-- Group configuration fields under an icon and modal-title section heading.
-- When configuration is unavailable, disable editing and explain why in a visible status banner.
 
 ### Status, alerts, and dialogs
 
-- Positive/online: green indicator, optional pulse only for an actively changing/live status, and text such as `ONLINE` or `SYSTEM ACTIVE`.
+- Positive/online: green indicator.
 - Informational/action: blue (`secondary`).
 - Error/locked: `error-container` with `on-error-container` content and an error accent border.
-- Confirmation dialogs must state the affected object, consequence, and clearly differentiate the safe action from the destructive one.
-
-## 6. Iconography and assets
-
-- Use Material Symbols Outlined for UI icons.
-- Standard icon sizes: 14 px for inline statuses, 18 px for button icons, 20 px for navigation and common controls, 24 px for alerts, and 48 px or larger only for key status visuals.
-- Use the LVK logo as provided in [`docs/design-system/logo/logo.png`](docs/design-system/logo/logo.png). Keep its aspect ratio; do not redraw or recolour it.
-
-## 7. Accessibility and content rules
-
-- Pair state colour with text and, where helpful, an icon.
-- Preserve readable contrast for text and control labels, especially on primary, secondary, and error backgrounds.
-- Keep interactive controls keyboard reachable with a visible focus state.
-- Use sentence case for descriptive copy; use uppercase primarily for compact navigation, labels, badges, and table headers.
-- Make action labels explicit: prefer `Save changes`, `Restore backup`, and `Go to dashboard` over vague labels such as `Confirm`.
-- Do not convey a destructive action solely through a trash icon.
-
-## 8. Reference screens
-
-- [`docs/design-system/dashboard/dashboard.html`](docs/design-system/dashboard/dashboard.html) — overview, status, responsive top navigation.
-- [`docs/design-system/backup/backup.html`](docs/design-system/backup/backup.html) — sidebar layout, data table, restoration confirmation.
-- [`docs/design-system/world/world.html`](docs/design-system/world/world.html) — configuration sections, write-lock alert, form controls.
-- [`docs/design-system/stats/stats.html`](docs/design-system/stats/stats.html) — monitoring and telemetry presentation.
