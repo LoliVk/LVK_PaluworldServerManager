@@ -45,3 +45,6 @@ Thumbs.db
 
 # 官方參考文件（僅本機參考,不進版控）
 docs/reference/
+
+# 官方設計文件（僅本機參考,不進版控）
+docs/design-system/**/*.png
