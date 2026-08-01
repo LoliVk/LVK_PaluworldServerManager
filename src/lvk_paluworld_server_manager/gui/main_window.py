@@ -107,6 +107,7 @@ class MainWindow(tk.Tk):
         self._backup_poll_job: str | None = None
         self._update_queue: queue.Queue[object] = queue.Queue()
         self._update_poll_job: str | None = None
+        self._start_options_popup: tk.Toplevel | None = None
 
         title_label = tk.Label(
             self,
@@ -227,6 +228,9 @@ class MainWindow(tk.Tk):
         for widget in self.winfo_children():
             widget.destroy()
         self._build_dashboard()
+        self.bind("<ButtonPress-1>", self._dismiss_start_options_on_main_click, add="+")
+        self.bind("<Escape>", lambda _event: self._hide_start_options(), add="+")
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._perform_environment_check)
 
     def _build_dashboard(self) -> None:
@@ -285,11 +289,16 @@ class MainWindow(tk.Tk):
             pady=5,
         ).pack(side="right")
 
-        hero = card(content)
+        hero = tk.Frame(content, background=palette["background"])
         hero.pack(fill="x", pady=(0, 16))
         hero.columnconfigure(0, weight=1)
-        hero_status = tk.Frame(hero, background=palette["card"])
-        hero_status.grid(row=0, column=0, sticky="nsew")
+        # Reserve a stable action column so the server status and controls
+        # keep the 8:4 split shown in the dashboard reference.
+        hero.columnconfigure(1, minsize=340)
+        server_card = card(hero)
+        server_card.grid(row=0, column=0, sticky="nsew", padx=(0, 24))
+        hero_status = tk.Frame(server_card, background=palette["card"])
+        hero_status.pack(fill="both", expand=True)
         self.server_status_label = tk.Label(
             hero_status,
             text="SERVER STOPPED",
@@ -308,22 +317,9 @@ class MainWindow(tk.Tk):
             anchor="w",
         ).pack(anchor="w", pady=(4, 0))
 
-        action_panel = tk.Frame(hero, background=palette["card"])
-        action_panel.grid(row=0, column=1, sticky="ne", padx=(24, 0))
+        action_panel = tk.Frame(hero, background=palette["background"])
+        action_panel.grid(row=0, column=1, sticky="new")
         self.mode_var = tk.StringVar(value="background")
-        mode_frame = tk.Frame(action_panel, background=palette["card"])
-        mode_frame.pack(anchor="e", pady=(0, 8))
-        for text, value in (("Background", "background"), ("Visible", "visible")):
-            tk.Radiobutton(
-                mode_frame,
-                text=text,
-                variable=self.mode_var,
-                value=value,
-                background=palette["card"],
-                foreground=palette["muted"],
-                activebackground=palette["card"],
-                font=("Segoe UI", 9),
-            ).pack(side="left", padx=(8, 0))
 
         button_style = {
             "relief": "flat",
@@ -333,8 +329,8 @@ class MainWindow(tk.Tk):
         }
         self.start_server_button = tk.Button(
             action_panel,
-            text="START SERVER",
-            command=self._on_start_server,
+            text="▷  START SERVER",
+            command=self._toggle_start_options,
             background=palette["primary"],
             activebackground="#003a04",
             foreground="#ffffff",
@@ -473,6 +469,7 @@ class MainWindow(tk.Tk):
         """Verify WSL/SteamCMD/PalServer are ready, disabling start if not."""
         result = server.check_environment()
         if not result.ok:
+            self._hide_start_options()
             self.environment_status_label.config(
                 text="ENVIRONMENT REQUIRES ATTENTION", foreground="#b00000"
             )
@@ -523,6 +520,8 @@ class MainWindow(tk.Tk):
 
     def _set_running_state(self, running: bool) -> None:
         """Toggle the Start/Stop buttons to reflect the server state."""
+        if running:
+            self._hide_start_options()
         self.start_server_button.config(state="disabled" if running else "normal")
         self.stop_server_button.config(state="normal" if running else "disabled")
         self.update_server_button.config(state="disabled" if running else "normal")
@@ -553,14 +552,100 @@ class MainWindow(tk.Tk):
         threading.Thread(target=self._fetch_connection_info, daemon=True).start()
         self._ip_poll_job = self.after(100, self._poll_ip_queue)
 
+    def _toggle_start_options(self) -> None:
+        """Toggle the floating launch-mode menu without changing the dashboard layout."""
+        if str(self.start_server_button["state"]) == "disabled":
+            return
+        if self._start_options_popup is not None:
+            self._hide_start_options()
+            return
+
+        self.update_idletasks()
+        popup = tk.Toplevel(self)
+        popup.withdraw()
+        popup.overrideredirect(True)
+        popup.transient(self)
+        popup.configure(background="#ffffff", highlightbackground="#e5e5e5", highlightthickness=1)
+
+        for text, mode in (
+            ("◉  Visible Mode", "visible"),
+            ("▥  Background Execution", "background"),
+        ):
+            tk.Button(
+                popup,
+                text=text,
+                command=lambda selected_mode=mode: self._start_server_in_mode(selected_mode),
+                background="#ffffff",
+                activebackground="#f3f3f3",
+                foreground="#1a1c1c",
+                relief="flat",
+                anchor="w",
+                font=("Segoe UI", 10),
+                padx=16,
+                pady=10,
+            ).pack(fill="x")
+
+        popup.bind("<Escape>", lambda _event: self._hide_start_options())
+        popup.bind("<FocusOut>", self._on_start_options_focus_out, add="+")
+        popup.update_idletasks()
+        popup_x = self.start_server_button.winfo_rootx()
+        popup_y = self.start_server_button.winfo_rooty() + self.start_server_button.winfo_height() + 8
+        popup_width = max(340, self.start_server_button.winfo_width())
+        popup.geometry(
+            f"{popup_width}x{popup.winfo_reqheight()}+{popup_x}+{popup_y}"
+        )
+        self._start_options_popup = popup
+        popup.deiconify()
+        popup.lift()
+
+    def _start_server_in_mode(self, mode: str) -> None:
+        """Set the selected launch mode and run the existing start handler."""
+        if str(self.start_server_button["state"]) == "disabled":
+            return
+        self.mode_var.set(mode)
+        self._hide_start_options()
+        self._on_start_server()
+
+    def _hide_start_options(self) -> None:
+        """Destroy the floating launch-mode menu when it is visible."""
+        popup = self._start_options_popup
+        self._start_options_popup = None
+        if popup is not None and popup.winfo_exists():
+            popup.destroy()
+
+    def _dismiss_start_options_on_main_click(self, event: tk.Event[tk.Misc]) -> None:
+        """Close the menu when the user clicks anywhere else in the main window."""
+        if event.widget is not self.start_server_button:
+            self._hide_start_options()
+
+    def _on_start_options_focus_out(self, _event: tk.Event[tk.Misc]) -> None:
+        """Close the menu after focus leaves the application window."""
+        self.after_idle(self._hide_start_options_if_focus_left)
+
+    def _hide_start_options_if_focus_left(self) -> None:
+        """Keep the menu open while focus remains inside its floating window."""
+        popup = self._start_options_popup
+        if popup is None or not popup.winfo_exists():
+            return
+        focus = self.focus_displayof()
+        if focus is None or str(focus.winfo_toplevel()) != str(popup):
+            self._hide_start_options()
+
+    def _on_close(self) -> None:
+        """Close auxiliary floating UI before destroying the application window."""
+        self._hide_start_options()
+        self.destroy()
+
     def _on_stop_server(self) -> None:
         """Handle the "Stop Server" button click."""
+        self._hide_start_options()
         server.stop_server()
         self._set_running_state(False)
         self.ip_label.config(text="")
 
     def _on_update_server(self) -> None:
         """Update Palworld Dedicated Server through SteamCMD in a worker thread."""
+        self._hide_start_options()
         if server.is_server_process_running():
             messagebox.showerror(
                 "伺服器仍在執行 / Server Is Running",
