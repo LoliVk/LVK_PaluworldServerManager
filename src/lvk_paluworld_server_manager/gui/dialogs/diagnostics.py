@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import messagebox, scrolledtext, ttk
 
 from ... import server
@@ -29,9 +30,15 @@ class DiagnosticDialog(tk.Toplevel):
     asynchronously via queue-based communication.
     """
 
-    def __init__(self, parent: tk.Tk) -> None:
+    def __init__(
+        self,
+        parent: tk.Tk,
+        *,
+        on_environment_check: Callable[[server.EnvironmentCheckResult], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self._parent = parent
+        self._on_environment_check = on_environment_check
         self._diagnostic_queue: queue.Queue[object] = queue.Queue()
         self._poll_job: str | None = None
 
@@ -195,6 +202,8 @@ class DiagnosticDialog(tk.Toplevel):
 
         if done and diagnostic_info:
             self._update_ui(diagnostic_info)
+            if self._on_environment_check is not None:
+                self._on_environment_check(diagnostic_info.environment_check)
             self._poll_job = None
         else:
             self._poll_job = self.after(100, self._poll_diagnostic_queue)

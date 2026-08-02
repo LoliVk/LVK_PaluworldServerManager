@@ -472,6 +472,20 @@ class MainWindow(tk.Tk):
             else:
                 badge.set("ACTION REQ", foreground="#9b5a00", background="#fff0dc")
 
+    def _apply_diagnostic_environment_check(
+        self, result: server.EnvironmentCheckResult
+    ) -> None:
+        """Synchronize dashboard environment status with diagnostic results."""
+        self._set_environment_badges(result)
+        if result.ok:
+            self.environment_status_label.config(
+                text="ENVIRONMENT READY", foreground="#005408"
+            )
+        else:
+            self.environment_status_label.config(
+                text="ENVIRONMENT REQUIRES ATTENTION", foreground="#b00000"
+            )
+
     def _set_connection_summary(self, text: str, foreground: str) -> None:
         """Retain the legacy label while projecting addresses into network rows."""
         self.ip_label.config(text=text, foreground=foreground)
@@ -777,7 +791,9 @@ class MainWindow(tk.Tk):
 
     def _on_show_diagnostics(self) -> None:
         """Handle the "Diagnostic Info" button click."""
-        DiagnosticDialog(self)
+        DiagnosticDialog(
+            self, on_environment_check=self._apply_diagnostic_environment_check
+        )
 
     # TODO: (Palworld 1.0) Keep the world-settings editor hidden from the main
     # window until PlM / Oodle support is complete. Re-add its button here once

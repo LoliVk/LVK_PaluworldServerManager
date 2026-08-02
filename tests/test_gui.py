@@ -425,6 +425,26 @@ def test_backup_world_selection_dialog_defaults_to_all_and_allows_partial_select
         window.destroy()
 
 
+def test_diagnostic_environment_check_synchronizes_dashboard_badges() -> None:
+    from lvk_paluworld_server_manager.server import EnvironmentCheckResult
+
+    window = _make_window()
+
+    try:
+        window._apply_diagnostic_environment_check(
+            EnvironmentCheckResult(
+                wsl_available=True,
+                steamcmd_installed=True,
+                palserver_installed=True,
+            )
+        )
+
+        assert window.environment_status_label["text"] == "ENVIRONMENT READY"
+        assert window._environment_badges["steamcmd"]._text == "READY"
+    finally:
+        window.destroy()
+
+
 @patch("lvk_paluworld_server_manager.gui.main_window.MainWindow._refresh_backup_inventory")
 @patch("lvk_paluworld_server_manager.gui.main_window.BackupCompleteDialog")
 def test_backup_queue_shows_completion_dialog_with_archive_path(
