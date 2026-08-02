@@ -13,6 +13,7 @@ from .. import server, world_options
 from ..config import AppConfig, create_app_message
 from .dialogs import (
     BackupCompleteDialog,
+    BackupWorldSelectionDialog,
     DiagnosticDialog,
     NetworkSetupDialog,
     WorldOptionEditorDialog,
@@ -786,18 +787,42 @@ class MainWindow(tk.Tk):
         WorldOptionEditorDialog(self)
 
     def _on_backup_all_world_saves(self) -> None:
-        """Start a verified backup of every dedicated-server world save."""
+        """Select worlds when needed, then start their verified backup."""
+        try:
+            save_games_root = server.get_save_games_windows_path()
+            worlds = world_options.list_backup_worlds(save_games_root)
+        except world_options.WorldOptionsError as exc:
+            messagebox.showerror("備份失敗 / Backup Failed", str(exc), parent=self)
+            return
+        except OSError as exc:
+            messagebox.showerror("備份失敗 / Backup Failed", str(exc), parent=self)
+            return
+        if not worlds:
+            messagebox.showerror(
+                "備份失敗 / Backup Failed",
+                f"找不到可備份的世界存檔 / No world saves found: {save_games_root}",
+                parent=self,
+            )
+            return
+        selected_worlds = [world.path for world in worlds]
+        if len(worlds) > 1:
+            dialog = BackupWorldSelectionDialog(self, worlds)
+            self.wait_window(dialog)
+            if dialog.selected_worlds is None:
+                return
+            selected_worlds = dialog.selected_worlds
         self.backup_worlds_button.config(state="disabled", text="BACKING UP...")
-        threading.Thread(target=self._backup_all_world_saves, daemon=True).start()
+        threading.Thread(target=self._backup_all_world_saves, args=(selected_worlds,), daemon=True).start()
         self._backup_poll_job = self.after(100, self._poll_backup_queue)
 
-    def _backup_all_world_saves(self) -> None:
+    def _backup_all_world_saves(self, world_directories: list[Path]) -> None:
         """Create the game backup in a worker thread."""
         try:
             save_games_root = server.get_save_games_windows_path()
-            archive_path = world_options.backup_all_world_saves(
+            archive_path = world_options.backup_selected_world_saves(
                 save_games_root,
                 save_games_root / "Backups",
+                world_directories,
                 is_server_running=server.is_server_process_running,
             )
             self._backup_queue.put(("saved", archive_path))

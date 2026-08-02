@@ -260,6 +260,59 @@ def test_backup_all_world_saves_creates_verified_archive_for_every_world(tmp_pat
     assert not any(name.startswith("Backups/") for name in names)
 
 
+def test_backup_all_world_saves_accepts_current_level_only_world(tmp_path: Path) -> None:
+    save_games_root = tmp_path / "SaveGames" / "0"
+    world_dir = save_games_root / "AAAA"
+    world_dir.mkdir(parents=True)
+    (world_dir / "Level.sav").write_bytes(b"level")
+
+    archive_path = world_options.backup_all_world_saves(
+        save_games_root,
+        save_games_root / "Backups",
+        is_server_running=lambda: False,
+    )
+
+    with zipfile.ZipFile(archive_path) as zf:
+        assert "AAAA/Level.sav" in zf.namelist()
+
+
+def test_backup_selected_world_saves_excludes_unselected_and_official_backups(tmp_path: Path) -> None:
+    save_games_root = tmp_path / "SaveGames" / "0"
+    selected = save_games_root / "AAAA"
+    other = save_games_root / "BBBB"
+    for world_dir in (selected, other):
+        (world_dir / "Players").mkdir(parents=True)
+        (world_dir / "Level.sav").write_bytes(b"level")
+    (selected / "Players" / "player.sav").write_bytes(b"player")
+    (selected / "backup" / "world" / "old").mkdir(parents=True)
+    (selected / "backup" / "world" / "old" / "Level.sav").write_bytes(b"old level")
+
+    archive_path = world_options.backup_selected_world_saves(
+        save_games_root,
+        save_games_root / "Backups",
+        [selected],
+        is_server_running=lambda: False,
+    )
+
+    with zipfile.ZipFile(archive_path) as zf:
+        names = zf.namelist()
+    assert "AAAA/Level.sav" in names
+    assert "AAAA/Players/player.sav" in names
+    assert not any(name.startswith("AAAA/backup/") for name in names)
+    assert not any(name.startswith("BBBB/") for name in names)
+
+
+def test_backup_selected_world_saves_rejects_empty_selection(tmp_path: Path) -> None:
+    save_games_root = tmp_path / "SaveGames" / "0"
+    with pytest.raises(world_options.BackupError, match="Select at least one"):
+        world_options.backup_selected_world_saves(
+            save_games_root,
+            save_games_root / "Backups",
+            [],
+            is_server_running=lambda: False,
+        )
+
+
 def test_backup_all_world_saves_refuses_while_server_running(tmp_path: Path) -> None:
     save_games_root = tmp_path / "SaveGames" / "0"
     world_dir = save_games_root / "AAAA"

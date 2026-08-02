@@ -42,6 +42,11 @@ from palworld_save_tools.paltypes import (
 #: Filename of the world-settings save file inside a world's save directory.
 WORLD_OPTION_FILENAME = "WorldOption.sav"
 
+#: Current Palworld servers persist the world state in ``Level.sav`` even
+#: when ``WorldOption.sav`` is absent.
+LEVEL_SAVE_FILENAME = "Level.sav"
+_BACKUP_WORLD_SAVE_FILENAMES = (WORLD_OPTION_FILENAME, LEVEL_SAVE_FILENAME)
+
 _BACKUP_ARCHIVE_TIMESTAMP = re.compile(r"^savegames_(\d{8}_\d{6})$")
 
 #: Custom property decoders, excluding paths known to be broken/disabled.
@@ -101,6 +106,16 @@ class BackupArchive:
     size_bytes: int
     verified: bool
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class BackupWorldInfo:
+    """Read-only summary of one world available for a manual backup."""
+
+    world_id: str
+    path: Path
+    modified_at: datetime
+    size_bytes: int
 
 
 @dataclass(frozen=True)
@@ -292,6 +307,53 @@ def find_world_saves(save_games_root: Path) -> list[WorldSaveInfo]:
                 WorldSaveInfo(world_id=child.name, world_option_path=candidate, world_dir=child)
             )
     return results
+
+
+def find_world_backup_directories(save_games_root: Path) -> list[Path]:
+    """Return world directories supported by the verified backup workflow.
+
+    ``WorldOption.sav`` identifies legacy worlds, while current Palworld
+    servers may contain only ``Level.sav``. The settings editor deliberately
+    remains limited to worlds that have ``WorldOption.sav``.
+    """
+    if not save_games_root.is_dir():
+        return []
+    return [
+        child
+        for child in sorted(save_games_root.iterdir(), key=lambda path: path.name)
+        if child.is_dir()
+        and any((child / filename).is_file() for filename in _BACKUP_WORLD_SAVE_FILENAMES)
+    ]
+
+
+def list_backup_worlds(save_games_root: Path) -> list[BackupWorldInfo]:
+    """Return selectable worlds with their current size and modification time.
+
+    The game's own rolling ``backup`` directory is deliberately omitted from
+    the reported size because it is not included in manual ZIP snapshots.
+    """
+    worlds: list[BackupWorldInfo] = []
+    for world_dir in find_world_backup_directories(save_games_root):
+        size_bytes = 0
+        modified_at = datetime.fromtimestamp(0)
+        try:
+            for file_path in world_dir.rglob("*"):
+                if not file_path.is_file() or world_dir / "backup" in file_path.parents:
+                    continue
+                stat = file_path.stat()
+                size_bytes += stat.st_size
+                modified_at = max(modified_at, datetime.fromtimestamp(stat.st_mtime))
+        except OSError as exc:
+            raise BackupError(f"Unable to inspect world save {world_dir.name}: {exc}") from exc
+        worlds.append(
+            BackupWorldInfo(
+                world_id=world_dir.name,
+                path=world_dir,
+                modified_at=modified_at,
+                size_bytes=size_bytes,
+            )
+        )
+    return worlds
 
 
 # ---------------------------------------------------------------------------
@@ -519,10 +581,11 @@ def list_backup_archives(save_games_root: Path) -> list[BackupArchive]:
                 if corrupt_member is not None:
                     error = f"Corrupt member: {corrupt_member}"
                 elif not any(
-                    name.endswith("/WorldOption.sav") or name == WORLD_OPTION_FILENAME
+                    name.endswith(f"/{filename}") or name == filename
                     for name in archive.namelist()
+                    for filename in _BACKUP_WORLD_SAVE_FILENAMES
                 ):
-                    error = "Missing WorldOption.sav"
+                    error = "Missing world save file"
                 else:
                     verified = True
         except (OSError, zipfile.BadZipFile) as exc:
@@ -558,9 +621,10 @@ def backup_all_world_saves(
     """Create a verified ZIP backup of every discovered world save.
 
     The dedicated server must be stopped so the archive cannot contain a
-    partially-written save. Only world directories discovered by
-    :func:`find_world_saves` are included; this deliberately excludes the
-    ``Backups`` destination when it is located below ``save_games_root``.
+    partially-written save. World directories containing either legacy
+    ``WorldOption.sav`` or current ``Level.sav`` are included; this
+    deliberately excludes the ``Backups`` destination when it is located
+    below ``save_games_root``.
 
     Args:
         save_games_root: The dedicated server's ``Pal/Saved/SaveGames/0``
@@ -574,17 +638,43 @@ def backup_all_world_saves(
         BackupError: If no worlds are available or the archive cannot be
             created and verified.
     """
+    world_directories = find_world_backup_directories(save_games_root)
+    if not world_directories:
+        raise BackupError(
+            f"找不到可備份的世界存檔 / No world saves found: {save_games_root}"
+        )
+    return backup_selected_world_saves(
+        save_games_root,
+        backups_root,
+        world_directories,
+        is_server_running=is_server_running,
+        now=now,
+    )
+
+
+def backup_selected_world_saves(
+    save_games_root: Path,
+    backups_root: Path,
+    world_directories: list[Path],
+    *,
+    is_server_running: Callable[[], bool],
+    now: Callable[[], datetime] = datetime.now,
+) -> Path:
+    """Create a verified ZIP snapshot of the explicitly selected worlds."""
     if is_server_running():
         raise ServerRunningError(
             "PalServer 仍在執行中，請先停止伺服器再備份。"
             " / PalServer is still running; stop it before backing up."
         )
 
-    worlds = find_world_saves(save_games_root)
-    if not worlds:
-        raise BackupError(
-            f"找不到可備份的世界存檔 / No world saves found: {save_games_root}"
-        )
+    available_worlds = set(find_world_backup_directories(save_games_root))
+    selected_worlds = list(dict.fromkeys(world_directories))
+    if not selected_worlds:
+        raise BackupError("請至少選擇一個世界存檔 / Select at least one world save")
+    if any(world_dir not in available_worlds for world_dir in selected_worlds):
+        raise BackupError("選取的世界存檔已不存在或無效 / Selected world save is unavailable")
+
+    world_directories = selected_worlds
 
     try:
         backups_root.mkdir(parents=True, exist_ok=True)
@@ -594,9 +684,9 @@ def backup_all_world_saves(
     archive_path = backups_root / f"savegames_{now().strftime('%Y%m%d_%H%M%S')}.zip"
     try:
         with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for world in worlds:
-                for file_path in sorted(world.world_dir.rglob("*")):
-                    if file_path.is_file():
+            for world_dir in world_directories:
+                for file_path in sorted(world_dir.rglob("*")):
+                    if file_path.is_file() and world_dir / "backup" not in file_path.parents:
                         zf.write(file_path, arcname=str(file_path.relative_to(save_games_root)))
     except OSError as exc:
         raise BackupError(f"建立備份失敗 / Failed to create backup: {exc}") from exc
@@ -612,12 +702,15 @@ def backup_all_world_saves(
     except zipfile.BadZipFile as exc:
         raise BackupError(f"備份檔案損毀 / Backup archive is corrupt: {exc}") from exc
 
-    expected_world_options = {
-        world.world_option_path.relative_to(save_games_root).as_posix() for world in worlds
+    expected_world_saves = {
+        (world_dir / filename).relative_to(save_games_root).as_posix()
+        for world_dir in world_directories
+        for filename in _BACKUP_WORLD_SAVE_FILENAMES
+        if (world_dir / filename).is_file()
     }
-    if not expected_world_options.issubset(names):
+    if not expected_world_saves.issubset(names):
         raise BackupError(
-            "備份檔案缺少 WorldOption.sav / Backup archive is missing one or more WorldOption.sav files"
+            "備份檔案缺少世界存檔 / Backup archive is missing one or more world save files"
         )
 
     return archive_path

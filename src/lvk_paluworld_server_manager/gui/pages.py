@@ -18,6 +18,8 @@ PALETTE = {
     "secondary": "#335ea1", "danger": "#ba1a1a", "border": "#c0c9b9",
 }
 
+_LEDGER_COLUMN_WIDTHS = (212, 104, 90, 76, 84)
+
 
 class DashboardPage(tk.Frame):
     """Server dashboard arranged as the two-column reference design."""
@@ -199,6 +201,13 @@ class BackupsPage(tk.Frame):
         self.backup_worlds_button = tk.Button(header, text="+  CREATE SNAPSHOT", command=on_backup, background=PALETTE["secondary"], activebackground="#144688", foreground="#ffffff", activeforeground="#ffffff", relief="flat", font=("Segoe UI", 9, "bold"), padx=18, pady=10)
         self.backup_worlds_button.pack(side="right", anchor="n")
 
+        self._stats = tk.Frame(self.content, background=PALETTE["background"])
+        self._stats.pack(fill="x", pady=(0, 16))
+        self._stat_cards: list[RoundedPanel] = []
+        self._total_value = self._stat_card(self._stats, "TOTAL ARCHIVES", "--")
+        self._storage_value = self._stat_card(self._stats, "STORAGE USED", "--")
+        self._latest_value = self._stat_card(self._stats, "LATEST BACKUP", "--", highlighted=True)
+
         self.layout = tk.Frame(self.content, background=PALETTE["background"])
         self.layout.pack(fill="both", expand=True)
         self.layout.columnconfigure(0, weight=2, minsize=520)
@@ -206,11 +215,6 @@ class BackupsPage(tk.Frame):
 
         self._left_column = tk.Frame(self.layout, background=PALETTE["background"])
         self._left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
-        stats = tk.Frame(self._left_column, background=PALETTE["background"])
-        stats.pack(fill="x", pady=(0, 16))
-        self._total_value = self._stat_card(stats, "TOTAL ARCHIVES", "--")
-        self._storage_value = self._stat_card(stats, "STORAGE USED", "--")
-        self._latest_value = self._stat_card(stats, "LATEST BACKUP", "--", highlighted=True)
 
         self.ledger_card = self._card(self._left_column, height=360)
         self.ledger_card.pack(fill="both", expand=True)
@@ -222,11 +226,11 @@ class BackupsPage(tk.Frame):
         self._ledger_body = tk.Frame(self.ledger_card.content, background="#ffffff")
         self._ledger_body.pack(fill="both", expand=True, padx=1, pady=(0, 1))
         columns = ("ID", "DATE", "TYPE", "SIZE", "STATUS")
-        header_row = tk.Frame(self._ledger_body, background="#ffffff")
-        header_row.pack(fill="x")
+        self._ledger_header_row = tk.Frame(self._ledger_body, background="#ffffff")
+        self._ledger_header_row.pack(fill="x")
         for index, title in enumerate(columns):
-            header_row.columnconfigure(index, weight=(2 if index < 2 else 1))
-            tk.Label(header_row, text=title, background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold"), anchor="w").grid(row=0, column=index, sticky="ew", padx=12, pady=9)
+            self._ledger_header_row.columnconfigure(index, minsize=_LEDGER_COLUMN_WIDTHS[index])
+            tk.Label(self._ledger_header_row, text=title, background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold"), anchor="w").grid(row=0, column=index, sticky="ew", padx=12, pady=9)
         self._empty_label = tk.Label(self._ledger_body, text="Loading archive inventory...", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10))
         self._empty_label.pack(fill="both", expand=True, pady=70)
 
@@ -250,7 +254,10 @@ class BackupsPage(tk.Frame):
     def _stat_card(self, parent: tk.Misc, title: str, value: str, *, highlighted: bool = False) -> tk.Label:
         background = PALETTE["primary_light"] if highlighted else PALETTE["card"]
         card = RoundedPanel(parent, background=background, border=PALETTE["border"], radius=8, height=92)
-        card.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        column = len(self._stat_cards)
+        self._stat_cards.append(card)
+        parent.columnconfigure(column, weight=1, uniform="backup_stats")
+        card.grid(row=0, column=column, sticky="ew", padx=(0, 8) if column < 2 else 0)
         tk.Label(card.content, text=title, background=background, foreground=PALETTE["primary"] if highlighted else PALETTE["muted"], font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=12, pady=(14, 4))
         label = tk.Label(card.content, text=value, background=background, foreground=PALETTE["text"], font=("Segoe UI", 16, "bold"))
         label.pack(anchor="w", padx=12)
@@ -298,7 +305,7 @@ class BackupsPage(tk.Frame):
             "Verified" if archive.verified else "Invalid",
         )
         for index, value in enumerate(values):
-            row.columnconfigure(index, weight=(2 if index < 2 else 1))
+            row.columnconfigure(index, minsize=_LEDGER_COLUMN_WIDTHS[index])
             color = PALETTE["primary"] if archive.verified and index == 4 else (PALETTE["danger"] if not archive.verified and index == 4 else PALETTE["text"])
             tk.Label(row, text=value, background=row_background, foreground=color, font=("Consolas" if index in (0, 1, 3) else "Segoe UI", 9), anchor="w", justify="left").grid(row=0, column=index, sticky="ew", padx=12, pady=10)
 
@@ -335,6 +342,12 @@ class BackupsPage(tk.Frame):
     def _on_resize(self, event: tk.Event[tk.Misc]) -> None:
         if event.widget is not self:
             return
+        compact_stats = event.width < 500
+        for index, card in enumerate(self._stat_cards):
+            column = 0 if compact_stats else index
+            card.grid_configure(row=index if compact_stats else 0, column=column, padx=0 if compact_stats else ((0, 8) if index < 2 else 0), pady=(0, 8) if compact_stats and index < 2 else 0)
+        for column in range(3):
+            self._stats.columnconfigure(column, weight=1 if not compact_stats or column == 0 else 0)
         if event.width < 900:
             self.layout.columnconfigure(0, minsize=0)
             self.layout.columnconfigure(1, minsize=0)

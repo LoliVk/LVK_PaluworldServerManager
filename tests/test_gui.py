@@ -67,6 +67,44 @@ def test_dashboard_breakpoints_switch_between_single_and_two_column_layouts() ->
         window.destroy()
 
 
+def test_backups_stats_use_available_width_and_stack_when_needed() -> None:
+    window = _make_window()
+
+    try:
+        page = window.backups_page
+        assert [card.grid_info()["column"] for card in page._stat_cards] == [0, 1, 2]
+
+        page._on_resize(SimpleNamespace(widget=page, width=480))
+        assert [card.grid_info()["row"] for card in page._stat_cards] == [0, 1, 2]
+        assert [card.grid_info()["column"] for card in page._stat_cards] == [0, 0, 0]
+
+        page._on_resize(SimpleNamespace(widget=page, width=900))
+        assert [card.grid_info()["row"] for card in page._stat_cards] == [0, 0, 0]
+        assert [card.grid_info()["column"] for card in page._stat_cards] == [0, 1, 2]
+    finally:
+        window.destroy()
+
+
+def test_backup_ledger_rows_share_the_header_column_widths() -> None:
+    window = _make_window()
+    archive = world_options.BackupArchive(
+        path=Path("savegames_20260801_012417.zip"),
+        created_at=datetime(2026, 8, 1, 1, 24),
+        size_bytes=28_500_000,
+        verified=True,
+    )
+
+    try:
+        page = window.backups_page
+        page.set_backup_archives([archive])
+
+        for index in range(5):
+            expected = page._ledger_header_row.grid_columnconfigure(index)["minsize"]
+            assert page._archive_rows[0].grid_columnconfigure(index)["minsize"] == expected
+    finally:
+        window.destroy()
+
+
 def test_navigation_uses_bottom_bar_below_compact_breakpoint() -> None:
     window = _make_window()
 
@@ -331,19 +369,59 @@ def test_main_window_shows_backup_button_without_editor_button() -> None:
 
 
 @patch("lvk_paluworld_server_manager.gui.main_window.threading.Thread")
-def test_backup_button_dispatches_background_worker(mock_thread_cls: MagicMock) -> None:
+@patch("lvk_paluworld_server_manager.gui.main_window.world_options.list_backup_worlds")
+@patch("lvk_paluworld_server_manager.gui.main_window.server.get_save_games_windows_path")
+def test_backup_button_dispatches_background_worker_for_one_world(
+    mock_save_path: MagicMock, mock_list_worlds: MagicMock, mock_thread_cls: MagicMock
+) -> None:
     window = _make_window()
+    world_path = Path("SaveGames/0/AAAA")
+    mock_save_path.return_value = Path("SaveGames/0")
+    mock_list_worlds.return_value = [
+        world_options.BackupWorldInfo(
+            world_id="AAAA", path=world_path, modified_at=datetime(2026, 1, 2, 3, 4, 5), size_bytes=1024
+        )
+    ]
 
     try:
         window._on_backup_all_world_saves()
 
         kwargs = mock_thread_cls.call_args.kwargs
         assert kwargs["target"] == window._backup_all_world_saves
+        assert kwargs["args"] == ([world_path],)
         assert kwargs["daemon"] is True
         assert str(window.backup_worlds_button["state"]) == "disabled"
     finally:
         if window._backup_poll_job is not None:
             window.after_cancel(window._backup_poll_job)
+        window.destroy()
+
+
+def test_backup_world_selection_dialog_defaults_to_all_and_allows_partial_selection() -> None:
+    from lvk_paluworld_server_manager.gui.dialogs import BackupWorldSelectionDialog
+
+    window = _make_window()
+    first_path = Path("SaveGames/0/AAAA")
+    second_path = Path("SaveGames/0/BBBB")
+    worlds = [
+        world_options.BackupWorldInfo("AAAA", first_path, datetime(2026, 1, 2, 3, 4, 5), 1024),
+        world_options.BackupWorldInfo("BBBB", second_path, datetime(2026, 1, 3, 4, 5, 6), 2048),
+    ]
+
+    try:
+        dialog = BackupWorldSelectionDialog(window, worlds)
+        try:
+            assert all(selected.get() for selected in dialog._selected)
+            dialog._clear_all()
+            assert str(dialog._confirm_button["state"]) == "disabled"
+            dialog._selected[0].set(True)
+            dialog._update_confirm_state()
+            dialog._confirm()
+            assert dialog.selected_worlds == [first_path]
+        finally:
+            if dialog.winfo_exists():
+                dialog.destroy()
+    finally:
         window.destroy()
 
 
