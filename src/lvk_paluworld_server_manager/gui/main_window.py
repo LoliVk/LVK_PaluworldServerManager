@@ -87,7 +87,7 @@ class MainWindow(tk.Tk):
         self._top_header = tk.Frame(self._workspace, background=palette["card"], height=64, highlightbackground=palette["border"], highlightthickness=1)
         self._top_header.pack(fill="x", side="top")
         self._top_header.pack_propagate(False)
-        tk.Label(self._top_header, text="●  SYSTEM STATUS", background=palette["card"], foreground=palette["primary"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=24, pady=20)
+        tk.Label(self._top_header, text="●  SYSTEM", background=palette["card"], foreground=palette["primary"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=24, pady=20)
         tk.Label(self._top_header, text="Palworld Server Manager", background=palette["card"], foreground=palette["muted"], font=("Segoe UI", 9)).pack(side="left", pady=20)
         self._page_container = tk.Frame(self._workspace, background=palette["background"])
         self._page_container.pack(fill="both", expand=True)
