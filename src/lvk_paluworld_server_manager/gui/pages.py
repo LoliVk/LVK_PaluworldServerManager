@@ -114,14 +114,53 @@ class DashboardPage(tk.Frame):
             value = tk.Label(row, text="WAITING FOR SERVER", background="#ffffff", foreground=PALETTE["text"], font=("Consolas", 9), anchor="w")
             value.pack(fill="x", padx=10, pady=(1, 7))
             self.network_value_labels[key] = value
-        port_row = tk.Frame(network_rows, background=PALETTE["card"])
-        port_row.pack(fill="x", pady=(2, 0))
-        tk.Label(port_row, text="GAME PORT 8211 (UDP)", background=PALETTE["card"], foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold")).pack(side="left")
-        self.network_port_pill = StatusPill(port_row, "CHECKING", foreground=PALETTE["muted"], background="#ffffff")
-        self.network_port_pill.pack(side="right")
+        port_row = tk.Frame(
+            network_rows,
+            background="#ffffff",
+            highlightbackground=PALETTE["border"],
+            highlightthickness=1,
+        )
+        port_row.pack(fill="x", pady=(0, 8))
+
+        tk.Label(
+            port_row,
+            text="GAME PORT",
+            background="#ffffff",
+            foreground=PALETTE["muted"],
+            font=("Segoe UI", 7, "bold"),
+        ).pack(anchor="w", padx=10, pady=(7, 1))
+
+        port_value_row = tk.Frame(port_row, background="#ffffff")
+        port_value_row.pack(anchor="w", padx=10, pady=(0, 7))
+
+        tk.Label(
+            port_value_row,
+            text="8211",
+            background="#ffffff",
+            foreground=PALETTE["text"],
+            font=("Consolas", 9),
+        ).pack(side="left")
+
+        self.network_port_pill = StatusPill(
+            port_value_row,
+            "OPEN",
+            foreground=PALETTE["secondary"],
+            background="#ffffff",
+        )
+        self.network_port_pill.pack(side="left", padx=(7, 0))
         self.ip_label = tk.Label(self.network_card.content, text="", background=PALETTE["card"], foreground=PALETTE["secondary"])
-        self.network_status_label = tk.Label(self.network_card.content, text="Network checks will run automatically.", background=PALETTE["card"], foreground=PALETTE["muted"], font=("Segoe UI", 8), anchor="w", justify="left", wraplength=260)
-        self.network_status_label.pack(fill="x", padx=14, pady=(8, 0))
+        # Network diagnostics are available in VIEW DIAGNOSTICS; keep the
+        # compatibility label but do not display the duplicate summary here.
+        self.network_status_label = tk.Label(
+            self.network_card.content,
+            text="",
+            background=PALETTE["card"],
+            foreground=PALETTE["muted"],
+            font=("Segoe UI", 8),
+            anchor="w",
+            justify="left",
+            wraplength=260,
+        )
 
         self.diagnostics_card = self._card(self.layout, height=330)
         self.diagnostics_card.grid(row=1, column=1, sticky="new")
