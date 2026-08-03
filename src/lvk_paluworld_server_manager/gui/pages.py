@@ -5,10 +5,11 @@ from __future__ import annotations
 import tkinter as tk
 from collections.abc import Callable
 from datetime import datetime
-from tkinter import scrolledtext
+from tkinter import scrolledtext, ttk
+from typing import Any
 
 from ..config import AppConfig, create_app_message
-from ..world_options import BackupArchive
+from ..world_options import BackupArchive, SettingField, WorldSaveInfo
 from .widgets import CanvasIconButton, RoundedPanel, StatusPill
 
 PALETTE = {
@@ -358,6 +359,374 @@ class BackupsPage(tk.Frame):
             self.layout.columnconfigure(1, minsize=270)
             self._left_column.grid_configure(row=0, column=0, padx=(0, 16), pady=0)
             self._right_column.grid_configure(row=0, column=1, padx=0, pady=0)
+
+
+class WorldPage(tk.Frame):
+    """Read-only WorldOption.sav inspection page based on the World reference."""
+
+    _CATEGORY_FIELDS = (
+        ("difficulty", "DIFFICULTY PRESET", ("difficulty",)),
+        (
+            "player",
+            "PLAYER & COMBAT",
+            ("death_penalty", "exp_rate", "player_damage_rate_attack", "player_damage_rate_defense"),
+        ),
+        (
+            "environment",
+            "WORLD ENVIRONMENT",
+            (
+                "day_time_speed_rate",
+                "night_time_speed_rate",
+                "enable_player_to_player_damage",
+                "enable_friendly_fire",
+            ),
+        ),
+        (
+            "pals",
+            "PAL MANAGEMENT",
+            (
+                "pal_capture_rate",
+                "pal_spawn_num_rate",
+                "pal_damage_rate_attack",
+                "pal_damage_rate_defense",
+                "pal_stomach_decrease_rate",
+                "drop_item_max_num_rate",
+                "collection_drop_rate",
+            ),
+        ),
+        ("system", "SYSTEM & SECURITY", ("server_player_max_num",)),
+    )
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        on_refresh: Callable[[], None],
+        on_world_selected: Callable[[str], None],
+        on_import_local: Callable[[], None],
+        on_merge: Callable[[], None],
+    ) -> None:
+        super().__init__(parent, background=PALETTE["background"])
+        self._on_refresh = on_refresh
+        self._on_world_selected = on_world_selected
+        self._on_import_local = on_import_local
+        self._on_merge = on_merge
+        self._section_cards: dict[str, tk.Widget] = {}
+        self._world_var = tk.StringVar(value="")
+        self._local_world_var = tk.StringVar(value="No local WorldOption.sav selected")
+
+        self._scroll_canvas = tk.Canvas(self, background=PALETTE["background"], highlightthickness=0)
+        self._scrollbar = tk.Scrollbar(self, orient="vertical", command=self._scroll_canvas.yview)
+        self._scroll_canvas.configure(yscrollcommand=self._scrollbar.set)
+        self._scrollbar.pack(side="right", fill="y")
+        self._scroll_canvas.pack(side="left", fill="both", expand=True)
+        self.content = tk.Frame(self._scroll_canvas, background=PALETTE["background"], padx=24, pady=24)
+        self._content_window = self._scroll_canvas.create_window(0, 0, anchor="nw", window=self.content)
+        self.content.bind("<Configure>", self._update_scroll_region, add="+")
+        self._scroll_canvas.bind("<Configure>", self._resize_content, add="+")
+        self.bind("<Configure>", self._on_resize, add="+")
+
+        self._build()
+
+    @staticmethod
+    def _card(parent: tk.Misc, **kwargs: object) -> RoundedPanel:
+        return RoundedPanel(parent, background="#ffffff", border=PALETTE["border"], radius=8, **kwargs)
+
+    def _build(self) -> None:
+        header = tk.Frame(self.content, background=PALETTE["background"])
+        header.pack(fill="x", pady=(0, 16))
+        heading = tk.Frame(header, background=PALETTE["background"])
+        heading.pack(side="left", fill="x", expand=True)
+        tk.Label(heading, text="World Settings", background=PALETTE["background"], foreground=PALETTE["text"], font=("Segoe UI", 24, "bold")).pack(anchor="w")
+        tk.Label(heading, text="Inspect decoded world rules from WorldOption.sav.", background=PALETTE["background"], foreground=PALETTE["muted"], font=("Segoe UI", 10)).pack(anchor="w", pady=(4, 0))
+
+        actions = tk.Frame(header, background=PALETTE["background"])
+        actions.pack(side="right", anchor="s")
+        tk.Label(actions, text="WORLD", background=PALETTE["background"], foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold")).pack(side="left", padx=(0, 6))
+        self._world_combo = ttk.Combobox(actions, textvariable=self._world_var, state="disabled", width=22)
+        self._world_combo.pack(side="left", padx=(0, 8))
+        self._world_combo.bind("<<ComboboxSelected>>", self._on_select)
+        self.refresh_button = tk.Button(actions, text="REFRESH WORLDS", command=self._on_refresh, background=PALETTE["secondary"], activebackground="#144688", foreground="#ffffff", activeforeground="#ffffff", relief="flat", font=("Segoe UI", 8, "bold"), padx=12, pady=8)
+        self.refresh_button.pack(side="left")
+
+        self.import_button = tk.Button(actions, text="IMPORT LOCAL WORLD", command=self._on_import_local, background="#ffffff", activebackground="#f3f3f3", foreground=PALETTE["secondary"], relief="solid", borderwidth=1, font=("Segoe UI", 8, "bold"), padx=12, pady=8)
+        self.import_button.pack(side="left", padx=(8, 0))
+
+        self._read_only_banner = tk.Frame(self.content, background="#ffdad6", highlightbackground=PALETTE["danger"], highlightthickness=1)
+        self._read_only_banner.pack(fill="x", pady=(0, 24))
+        tk.Label(self._read_only_banner, text="READ-ONLY INSPECTION", background="#ffdad6", foreground="#93000a", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(12, 2))
+        tk.Label(self._read_only_banner, text="Saving is unavailable until WorldOption.sav parsing has been verified with a real game save.", background="#ffdad6", foreground="#93000a", font=("Segoe UI", 9), wraplength=900, justify="left").pack(anchor="w", padx=16, pady=(0, 12))
+
+        self._merge_card = self._card(self.content)
+        self._merge_card.pack(fill="x", pady=(0, 16))
+        merge_header = tk.Frame(self._merge_card.content, background="#ffffff")
+        merge_header.pack(fill="x", padx=16, pady=(14, 4))
+        tk.Label(merge_header, text="SAFE GAME SETTINGS MERGE", background="#ffffff", foreground=PALETTE["primary"], font=("Segoe UI", 12, "bold")).pack(side="left")
+        self.merge_button = tk.Button(merge_header, text="MERGE GAME SETTINGS TO WSL WORLD", command=self._on_merge, state="disabled", background=PALETTE["secondary"], activebackground="#144688", foreground="#ffffff", disabledforeground="#7d8590", relief="flat", font=("Segoe UI", 8, "bold"), padx=12, pady=8)
+        self.merge_button.pack(side="right")
+        tk.Label(self._merge_card.content, textvariable=self._local_world_var, background="#ffffff", foreground=PALETTE["muted"], font=("Consolas", 9), anchor="w").pack(fill="x", padx=16, pady=(2, 8))
+        self._merge_status = tk.Label(self._merge_card.content, text="Select a WSL world and import a local WorldOption.sav to preview gameplay-only changes.", background="#f3f3f3", foreground=PALETTE["muted"], font=("Segoe UI", 9), justify="left", anchor="w", wraplength=900)
+        self._merge_status.pack(fill="x", padx=16, pady=(0, 14))
+
+        self._preserved_card = self._card(self.content)
+        self._preserved_card.pack(fill="x", pady=(0, 24))
+        tk.Label(self._preserved_card.content, text="SERVER SETTINGS PROTECTED", background="#ffffff", foreground=PALETTE["primary"], font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16, pady=(14, 4))
+        tk.Label(self._preserved_card.content, text="AdminPassword, REST API, and RCON values are preserved from the WSL world. Password values are never displayed or copied from the local world.", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 9), justify="left", wraplength=900).pack(anchor="w", padx=16, pady=(0, 14))
+
+        self.layout = tk.Frame(self.content, background=PALETTE["background"])
+        self.layout.pack(fill="both", expand=True)
+        self.layout.columnconfigure(1, weight=1)
+
+        self._categories = tk.Frame(self.layout, background=PALETTE["background"], width=220)
+        self._categories.grid(row=0, column=0, sticky="new", padx=(0, 16))
+        self._categories.grid_propagate(False)
+        tk.Label(self._categories, text="CATEGORIES", background=PALETTE["background"], foreground=PALETTE["muted"], font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=12, pady=(4, 8))
+        for key, title, _field_keys in self._CATEGORY_FIELDS:
+            tk.Button(self._categories, text=title.title(), command=lambda section=key: self._scroll_to(section), anchor="w", relief="flat", borderwidth=0, background=PALETTE["background"], activebackground=PALETTE["card_high"], foreground=PALETTE["muted"], activeforeground=PALETTE["text"], font=("Segoe UI", 9), padx=12, pady=8).pack(fill="x", pady=1)
+        tk.Button(self._categories, text="Full JSON", command=lambda: self._scroll_to("json"), anchor="w", relief="flat", borderwidth=0, background=PALETTE["background"], activebackground=PALETTE["card_high"], foreground=PALETTE["muted"], activeforeground=PALETTE["text"], font=("Segoe UI", 9), padx=12, pady=8).pack(fill="x", pady=1)
+
+        self._details = tk.Frame(self.layout, background=PALETTE["background"])
+        self._details.grid(row=0, column=1, sticky="nsew")
+        self._details_status = tk.Label(self._details, text="Choose a world to inspect its decoded settings.", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10), justify="left")
+        self._details_status.pack(fill="x", padx=1, pady=1)
+
+    def _update_scroll_region(self, _event: tk.Event[tk.Misc]) -> None:
+        self._scroll_canvas.configure(scrollregion=self._scroll_canvas.bbox("all"))
+
+    def _resize_content(self, event: tk.Event[tk.Misc]) -> None:
+        self._scroll_canvas.itemconfigure(self._content_window, width=event.width)
+
+    def _on_resize(self, event: tk.Event[tk.Misc]) -> None:
+        if event.widget is not self:
+            return
+        if event.width < 900:
+            self._categories.grid_configure(row=0, column=0, columnspan=2, sticky="ew", padx=0, pady=(0, 12))
+            self._details.grid_configure(row=1, column=0, columnspan=2, sticky="nsew")
+        else:
+            self._categories.grid_configure(row=0, column=0, columnspan=1, sticky="new", padx=(0, 16), pady=0)
+            self._details.grid_configure(row=0, column=1, columnspan=1, sticky="nsew")
+
+    def _on_select(self, _event: object = None) -> None:
+        world_id = self._world_var.get()
+        if world_id:
+            self._on_world_selected(world_id)
+
+    def _scroll_to(self, section: str) -> None:
+        card = self._section_cards.get(section)
+        if card is None:
+            return
+        self.update_idletasks()
+        total_height = max(self.content.winfo_height(), 1)
+        self._scroll_canvas.yview_moveto(max(0.0, card.winfo_y() / total_height))
+
+    def _clear_details(self) -> None:
+        for child in self._details.winfo_children():
+            child.destroy()
+        self._section_cards.clear()
+
+    def set_scan_loading(self) -> None:
+        self.refresh_button.config(state="disabled", text="REFRESHING...")
+        self._world_combo.config(state="disabled", values=())
+        self._world_var.set("")
+        self._clear_details()
+        self._details_status = tk.Label(self._details, text="Scanning for WorldOption.sav files...", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10), justify="left")
+        self._details_status.pack(fill="x", padx=1, pady=1)
+
+    def set_worlds(self, worlds: list[WorldSaveInfo]) -> None:
+        self.refresh_button.config(state="normal", text="REFRESH WORLDS")
+        self._world_var.set("")
+        if not worlds:
+            self._world_combo.config(state="disabled", values=())
+            self._clear_details()
+            self._details_status = tk.Label(self._details, text="No WorldOption.sav files were found. Refresh after the server saves a world.", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10), justify="left", wraplength=700)
+            self._details_status.pack(fill="x", padx=16, pady=32)
+            return
+        self._world_combo.config(state="readonly", values=[world.world_id for world in worlds])
+        self._clear_details()
+        self._details_status = tk.Label(self._details, text="Choose a world to inspect its decoded settings.", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10), justify="left")
+        self._details_status.pack(fill="x", padx=16, pady=32)
+
+    def set_scan_error(self, error: str) -> None:
+        self.refresh_button.config(state="normal", text="REFRESH WORLDS")
+        self._world_combo.config(state="disabled", values=())
+        self._world_var.set("")
+        self._clear_details()
+        self._details_status = tk.Label(self._details, text=f"Unable to scan world saves.\n{error}", background="#ffdad6", foreground="#93000a", font=("Segoe UI", 10), justify="left", wraplength=700)
+        self._details_status.pack(fill="x", padx=1, pady=1)
+
+    def set_decode_loading(self, world_id: str) -> None:
+        self._clear_details()
+        self._details_status = tk.Label(self._details, text=f"Decoding {world_id}...", background="#ffffff", foreground=PALETTE["muted"], font=("Segoe UI", 10))
+        self._details_status.pack(fill="x", padx=16, pady=32)
+
+    def set_external_processing(self, message: str) -> None:
+        """Show a non-editing external inspection stage while controls are locked."""
+        self.refresh_button.config(state="disabled", text="PROCESSING...")
+        self._world_combo.config(state="disabled")
+        self.import_button.config(state="disabled")
+        self.merge_button.config(state="disabled")
+        self._clear_details()
+        self._details_status = tk.Label(
+            self._details,
+            text=message,
+            background="#ffffff",
+            foreground=PALETTE["muted"],
+            font=("Segoe UI", 10),
+            justify="left",
+            wraplength=700,
+        )
+        self._details_status.pack(fill="x", padx=16, pady=32)
+
+    def finish_external_processing(self, world_id: str, message: str, *, error: bool = False) -> None:
+        """Restore page controls after a PST workflow finishes or fails."""
+        self.refresh_button.config(state="normal", text="REFRESH WORLDS")
+        if self._world_combo.cget("values"):
+            self._world_combo.config(state="readonly")
+            self._world_var.set(world_id)
+        self.import_button.config(state="normal")
+        self._clear_details()
+        self._details_status = tk.Label(
+            self._details,
+            text=message,
+            background="#ffdad6" if error else "#ffffff",
+            foreground="#93000a" if error else PALETTE["primary"],
+            font=("Segoe UI", 10),
+            justify="left",
+            wraplength=700,
+        )
+        self._details_status.pack(fill="x", padx=16, pady=32)
+
+    def set_decode_error(self, error: str) -> None:
+        self._clear_details()
+        self._details_status = tk.Label(self._details, text=f"Unable to decode the selected WorldOption.sav.\n{error}", background="#ffdad6", foreground="#93000a", font=("Segoe UI", 10), justify="left", wraplength=700)
+        self._details_status.pack(fill="x", padx=1, pady=1)
+
+    def set_local_world_loading(self, path: str) -> None:
+        self._local_world_var.set(path)
+        self._merge_status.config(text="Decoding local WorldOption.sav and preparing a safe merge preview...")
+        self.merge_button.config(state="disabled")
+
+    def set_local_world_error(self, error: str) -> None:
+        self._local_world_var.set("Local WorldOption.sav could not be imported")
+        self._merge_status.config(text=f"Unable to decode local WorldOption.sav.\n{error}", background="#ffdad6", foreground="#93000a")
+        self.merge_button.config(state="disabled")
+
+    def set_merge_preview(
+        self,
+        *,
+        local_path: str,
+        updated_count: int,
+        unavailable_count: int,
+        preserved_fields: tuple[str, ...],
+        write_ready: bool,
+    ) -> None:
+        self._local_world_var.set(local_path)
+        preserved = ", ".join(preserved_fields) if preserved_fields else "server-owned settings"
+        if write_ready:
+            message = (
+                f"Ready: {updated_count} gameplay fields will be updated; "
+                f"{unavailable_count} unavailable fields remain unchanged. Preserved: {preserved}."
+            )
+        else:
+            message = (
+                f"Preview only: {updated_count} gameplay fields differ; "
+                f"{unavailable_count} unavailable fields remain unchanged. Preserved: {preserved}. "
+                "Writing remains disabled until the codec passes real PlM round-trip verification."
+            )
+        self._merge_status.config(text=message, background="#f3f3f3", foreground=PALETTE["muted"])
+        self.merge_button.config(state="normal" if write_ready else "disabled")
+
+    def set_decoded(
+        self,
+        settings: list[tuple[SettingField, Any | None]],
+        json_text: str,
+    ) -> None:
+        self._clear_details()
+        values = {field.key: (field, value) for field, value in settings}
+        for category, title, field_keys in self._CATEGORY_FIELDS:
+            card = self._card(self._details)
+            card.pack(fill="x", pady=(0, 16))
+            self._section_cards[category] = card
+            header = tk.Frame(card.content, background="#ffffff")
+            header.pack(fill="x", padx=16, pady=(16, 10))
+            tk.Label(header, text=title, background="#ffffff", foreground=PALETTE["primary"], font=("Segoe UI", 14, "bold")).pack(anchor="w")
+            if category == "difficulty":
+                self._build_difficulty(card.content, values.get("difficulty"))
+            else:
+                self._build_setting_rows(card.content, [values.get(key) for key in field_keys])
+        self._build_json_card(json_text)
+
+    def _build_difficulty(
+        self,
+        parent: tk.Misc,
+        setting: tuple[SettingField, Any | None] | None,
+    ) -> None:
+        container = tk.Frame(parent, background="#ffffff")
+        container.pack(fill="x", padx=16, pady=(0, 16))
+        current = setting[1] if setting is not None else None
+        for choice in ("Casual", "Normal", "Hard", "Custom"):
+            selected = choice == current
+            tile = tk.Frame(container, background="#e5f4e2" if selected else "#f3f3f3", highlightbackground=PALETTE["primary"] if selected else PALETTE["border"], highlightthickness=1)
+            tile.pack(side="left", fill="x", expand=True, padx=(0, 8) if choice != "Custom" else 0)
+            label = f"{choice}" if current is not None else "Unavailable"
+            tk.Label(tile, text=label, background=tile["background"], foreground=PALETTE["text"], font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=10, pady=(10, 2))
+            tk.Label(tile, text="Selected" if selected else "Read-only", background=tile["background"], foreground=PALETTE["muted"], font=("Segoe UI", 8)).pack(anchor="w", padx=10, pady=(0, 10))
+
+    def _build_setting_rows(
+        self,
+        parent: tk.Misc,
+        settings: list[tuple[SettingField, Any | None] | None],
+    ) -> None:
+        rows = tk.Frame(parent, background="#ffffff")
+        rows.pack(fill="x", padx=16, pady=(0, 16))
+        for setting in settings:
+            row = tk.Frame(rows, background="#f3f3f3", highlightbackground=PALETTE["border"], highlightthickness=1)
+            row.pack(fill="x", pady=(0, 8))
+            if setting is None:
+                label, value = "Unavailable", "Not supported by this save"
+            else:
+                field, setting_value = setting
+                label = field.label
+                if setting_value is None:
+                    value = "Unavailable"
+                elif field.kind == "bool":
+                    value = "ON" if setting_value else "OFF"
+                else:
+                    value = str(setting_value)
+            tk.Label(row, text=label, background="#f3f3f3", foreground=PALETTE["text"], font=("Segoe UI", 9, "bold"), anchor="w").pack(side="left", fill="x", expand=True, padx=12, pady=10)
+            tk.Label(row, text=value, background="#ffffff", foreground=PALETTE["muted"], font=("Consolas", 9), anchor="e", padx=8, pady=4).pack(side="right", padx=8, pady=6)
+
+    def _build_json_card(self, json_text: str) -> None:
+        card = self._card(self._details)
+        card.pack(fill="both", expand=True, pady=(0, 16))
+        self._section_cards["json"] = card
+        header = tk.Frame(card.content, background="#ffffff")
+        header.pack(fill="x", padx=16, pady=(16, 8))
+        tk.Label(header, text="FULL DECODED JSON", background="#ffffff", foreground=PALETTE["primary"], font=("Segoe UI", 14, "bold")).pack(side="left")
+        self._json_search_var = tk.StringVar()
+        search = tk.Entry(header, textvariable=self._json_search_var, width=24, background="#eeeeee", relief="flat")
+        search.pack(side="right")
+        search.bind("<Return>", lambda _event: self._find_json())
+        tk.Button(header, text="FIND", command=self._find_json, background="#eeeeee", activebackground="#e2e2e2", foreground=PALETTE["muted"], relief="flat", font=("Segoe UI", 8, "bold"), padx=8, pady=4).pack(side="right", padx=(0, 6))
+        self._json_text = scrolledtext.ScrolledText(card.content, height=20, state="normal", background="#1e1e1e", foreground="#e2e2e2", insertbackground="#ffffff", borderwidth=0, font=("Consolas", 9), wrap="none", padx=12, pady=10)
+        self._json_text.insert("1.0", json_text)
+        self._json_text.config(state="disabled")
+        self._json_text.tag_configure("search_hit", background="#8f6f00")
+        self._json_text.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+
+    def _find_json(self) -> None:
+        query = self._json_search_var.get()
+        if not query or not hasattr(self, "_json_text"):
+            return
+        self._json_text.tag_remove("search_hit", "1.0", tk.END)
+        found = self._json_text.search(query, self._json_text.index(tk.INSERT), stopindex=tk.END, nocase=True)
+        if not found:
+            found = self._json_text.search(query, "1.0", stopindex=tk.END, nocase=True)
+        if found:
+            end = f"{found}+{len(query)}c"
+            self._json_text.tag_add("search_hit", found, end)
+            self._json_text.mark_set(tk.INSERT, end)
+            self._json_text.see(found)
 
 
 class PlaceholderPage(tk.Frame):

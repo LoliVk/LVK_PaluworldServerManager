@@ -6,7 +6,8 @@ import queue
 import subprocess
 import threading
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
+from pathlib import Path
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 from typing import Any
 
 from .. import server, world_options
@@ -18,7 +19,7 @@ from .dialogs import (
     NetworkSetupDialog,
     WorldOptionEditorDialog,
 )
-from .pages import BackupsPage, DashboardPage, PlaceholderPage
+from .pages import BackupsPage, DashboardPage, PlaceholderPage, WorldPage
 from .widgets import CanvasIconButton, RoundedPanel, StatusPill
 
 #: Sentinel placed on the output queue once the background process ends.
@@ -35,6 +36,9 @@ _BACKUP_INVENTORY_DONE = object()
 
 #: Sentinel placed on the server-update queue once a background task finishes.
 _UPDATE_DONE = object()
+
+#: Sentinel placed on the world-page queue after each background operation.
+_WORLD_OPERATION_DONE = object()
 
 #: Palworld default game port shown alongside the IP address.
 _PALWORLD_PORT: int = 8211
@@ -63,6 +67,15 @@ class MainWindow(tk.Tk):
         self._backup_inventory_refresh_pending = False
         self._update_queue: queue.Queue[object] = queue.Queue()
         self._update_poll_job: str | None = None
+        self._world_queue: queue.Queue[object] = queue.Queue()
+        self._world_poll_job: str | None = None
+        self._world_workers_pending = 0
+        self._world_scan_generation = 0
+        self._world_decode_generation = 0
+        self._world_merge_generation = 0
+        self._worlds_by_id: dict[str, world_options.WorldSaveInfo] = {}
+        self._world_documents: dict[str, tuple[Any, int]] = {}
+        self._local_world_document: tuple[Path, Any] | None = None
         self._start_options_popup: tk.Toplevel | None = None
         self._console_auto_scroll = True
 
@@ -108,7 +121,13 @@ class MainWindow(tk.Tk):
             self._page_container,
             on_backup=self._on_backup_all_world_saves,
         )
-        self.world_page = PlaceholderPage(self._page_container, "World")
+        self.world_page = WorldPage(
+            self._page_container,
+            on_refresh=self._refresh_worlds,
+            on_world_selected=self._select_world,
+            on_import_local=self._on_import_local_world,
+            on_merge=self._on_merge_game_settings,
+        )
         self.stats_page = PlaceholderPage(self._page_container, "Stats")
         self._pages = {
             "dashboard": self.dashboard_page,
@@ -172,6 +191,8 @@ class MainWindow(tk.Tk):
         self._pages[page_name].tkraise()
         if page_name == "backups":
             self._refresh_backup_inventory()
+        elif page_name == "world":
+            self._refresh_worlds()
         for key, buttons in self._navigation_buttons.items():
             selected = key == page_name
             for button in buttons:
@@ -247,7 +268,7 @@ class MainWindow(tk.Tk):
         ).pack(side="left")
         self.server_system_label = tk.Label(
             header,
-            text="SYSTEM READY",
+            text="READY",
             background=palette["primary_light"],
             foreground=palette["primary"],
             font=("Segoe UI", 9, "bold"),
@@ -576,7 +597,7 @@ class MainWindow(tk.Tk):
         state_color = "#005408" if running else "#40493d"
         self.server_status_label.config(text=state_text, foreground=state_color)
         self.server_system_label.config(
-            text="SYSTEM ONLINE" if running else "SYSTEM READY",
+            text="ONLINE" if running else "READY",
             foreground=state_color,
             background="#e5f4e2" if running else "#f5f5f4",
         )
@@ -794,6 +815,321 @@ class MainWindow(tk.Tk):
         DiagnosticDialog(
             self, on_environment_check=self._apply_diagnostic_environment_check
         )
+
+    def _refresh_worlds(self) -> None:
+        """Scan WorldOption.sav directories outside the Tk event loop."""
+        self._world_scan_generation += 1
+        self._world_decode_generation += 1
+        request_id = self._world_scan_generation
+        self._worlds_by_id = {}
+        self._world_documents = {}
+        self.world_page.set_scan_loading()
+        self._world_workers_pending += 1
+        threading.Thread(target=self._load_worlds, args=(request_id,), daemon=True).start()
+        self._ensure_world_queue_polling()
+
+    def _load_worlds(self, request_id: int) -> None:
+        """Background worker that discovers worlds with WorldOption.sav."""
+        try:
+            worlds = world_options.find_world_saves(server.get_save_games_windows_path())
+            self._world_queue.put(("worlds", request_id, worlds))
+        except Exception as exc:  # noqa: BLE001
+            self._world_queue.put(("scan_error", request_id, str(exc)))
+        self._world_queue.put((_WORLD_OPERATION_DONE, request_id))
+
+    def _select_world(self, world_id: str) -> None:
+        """Back up every world, then hand the selected save to PST."""
+        world = self._worlds_by_id.get(world_id)
+        if world is None:
+            return
+        server_was_running = server.is_server_process_running()
+        if server_was_running and not messagebox.askyesno(
+            "Stop Server for World Inspection",
+            "PalServer must stop before a verified all-world backup can be made.\n\n"
+            "Stop the server, create the backup, then open PST?",
+            parent=self,
+        ):
+            self.world_page.finish_external_processing(
+                world_id,
+                "World inspection was canceled. PalServer remains running.",
+            )
+            return
+        self._world_decode_generation += 1
+        request_id = self._world_decode_generation
+        self.world_page.set_external_processing(
+            f"Preparing protected inspection for {world_id}..."
+        )
+        self._world_workers_pending += 1
+        threading.Thread(
+            target=self._backup_and_launch_pst,
+            args=(request_id, world, server_was_running),
+            daemon=True,
+        ).start()
+        self._ensure_world_queue_polling()
+
+    def _backup_and_launch_pst(
+        self,
+        request_id: int,
+        world: world_options.WorldSaveInfo,
+        server_was_running: bool = False,
+    ) -> None:
+        """Stop safely, create a verified snapshot, then run the external PST GUI."""
+        try:
+            if server_was_running:
+                self._world_queue.put(
+                    ("world_status", request_id, world.world_id, "Stopping PalServer...")
+                )
+                server.stop_server_and_wait(timeout_seconds=30)
+                self._world_queue.put(("server_stopped", request_id, world.world_id))
+            elif server.is_server_process_running():
+                raise RuntimeError(
+                    "PalServer started before inspection could begin. Select the world again to confirm stopping it."
+                )
+            self._world_queue.put(
+                ("world_status", request_id, world.world_id, "Creating verified backup of all worlds...")
+            )
+            save_games_root = server.get_save_games_windows_path()
+            backup_path = world_options.backup_all_world_saves(
+                save_games_root,
+                save_games_root / "Backups",
+                is_server_running=server.is_server_process_running,
+            )
+            self._world_queue.put(
+                (
+                    "world_status",
+                    request_id,
+                    world.world_id,
+                    f"Backup verified: {backup_path.name}. Launching PST...",
+                )
+            )
+            world_option_wsl_path = (
+                f"{server.SAVE_GAMES_PATH}/{world.world_id}/"
+                f"{world_options.WORLD_OPTION_FILENAME}"
+            )
+            self._world_queue.put(
+                ("world_status", request_id, world.world_id, "PST is open. Waiting for it to close...")
+            )
+            server.launch_pst(world_option_wsl_path)
+            self._world_queue.put(("pst_closed", request_id, world.world_id, backup_path))
+        except Exception as exc:  # noqa: BLE001
+            self._world_queue.put(("pst_error", request_id, world.world_id, str(exc)))
+        self._world_queue.put((_WORLD_OPERATION_DONE, request_id))
+
+    def _decode_world(self, request_id: int, world: world_options.WorldSaveInfo) -> None:
+        """Background worker that reads and decodes one WorldOption.sav."""
+        try:
+            gvas_file, save_type = world_options.decode_sav_bytes(world.world_option_path.read_bytes())
+            settings = world_options.get_available_settings(gvas_file.properties)
+            json_text = world_options.dump_gvas_json(gvas_file)
+            self._world_queue.put(
+                ("decoded", request_id, world.world_id, gvas_file, save_type, settings, json_text)
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._world_queue.put(("decode_error", request_id, world.world_id, str(exc)))
+        self._world_queue.put((_WORLD_OPERATION_DONE, request_id))
+
+    def _ensure_world_queue_polling(self) -> None:
+        if self._world_poll_job is None:
+            self._world_poll_job = self.after(100, self._poll_world_queue)
+
+    def _on_import_local_world(self) -> None:
+        """Choose a local game WorldOption.sav and decode it off the Tk thread."""
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title="Select local WorldOption.sav",
+            filetypes=[("Palworld WorldOption.sav", "WorldOption.sav"), ("Save files", "*.sav")],
+        )
+        if not selected:
+            return
+        path = Path(selected)
+        self._world_merge_generation += 1
+        request_id = self._world_merge_generation
+        self.world_page.set_local_world_loading(str(path))
+        self._world_workers_pending += 1
+        threading.Thread(target=self._decode_local_world, args=(request_id, path), daemon=True).start()
+        self._ensure_world_queue_polling()
+
+    def _decode_local_world(self, request_id: int, path: Path) -> None:
+        try:
+            gvas_file, _save_type = world_options.decode_sav_bytes(path.read_bytes())
+            self._world_queue.put(("local_decoded", request_id, path, gvas_file))
+        except Exception as exc:  # noqa: BLE001
+            self._world_queue.put(("local_decode_error", request_id, str(exc)))
+        self._world_queue.put((_WORLD_OPERATION_DONE, request_id))
+
+    def _update_merge_preview(self) -> None:
+        """Update the non-mutating preview once both source documents exist."""
+        world_id = self.world_page._world_var.get()
+        server_document = self._world_documents.get(world_id)
+        local_document = self._local_world_document
+        if server_document is None or local_document is None:
+            return
+        server_gvas, _save_type = server_document
+        local_path, local_gvas = local_document
+        try:
+            _merged, preview = world_options.merge_gameplay_gvas(server_gvas, local_gvas)
+        except Exception as exc:  # noqa: BLE001
+            self.world_page.set_local_world_error(str(exc))
+            return
+        codec = world_options.DEFAULT_WORLD_OPTION_CODEC
+        self.world_page.set_merge_preview(
+            local_path=str(local_path),
+            updated_count=len(preview.updated_fields),
+            unavailable_count=len(preview.unavailable_fields),
+            preserved_fields=preview.preserved_server_fields,
+            write_ready=codec.writer_verified and not server.is_server_process_running(),
+        )
+
+    def _on_merge_game_settings(self) -> None:
+        """Run the guarded write workflow only after a codec has been verified."""
+        world_id = self.world_page._world_var.get()
+        world = self._worlds_by_id.get(world_id)
+        server_document = self._world_documents.get(world_id)
+        local_document = self._local_world_document
+        if world is None or server_document is None or local_document is None:
+            return
+        self._world_merge_generation += 1
+        request_id = self._world_merge_generation
+        self.world_page.merge_button.config(state="disabled")
+        self._world_workers_pending += 1
+        server_gvas, save_type = server_document
+        _local_path, local_gvas = local_document
+        threading.Thread(
+            target=self._merge_game_settings,
+            args=(request_id, world, server_gvas, save_type, local_gvas),
+            daemon=True,
+        ).start()
+        self._ensure_world_queue_polling()
+
+    def _merge_game_settings(
+        self,
+        request_id: int,
+        world: world_options.WorldSaveInfo,
+        server_gvas: Any,
+        save_type: int,
+        local_gvas: Any,
+    ) -> None:
+        try:
+            result = world_options.save_merged_world_options(
+                world,
+                server_gvas,
+                save_type,
+                local_gvas,
+                world.world_dir.parent / "Backups",
+                is_server_running=server.is_server_process_running,
+            )
+            self._world_queue.put(("merge_saved", request_id, result))
+        except Exception as exc:  # noqa: BLE001
+            self._world_queue.put(("merge_error", request_id, str(exc)))
+        self._world_queue.put((_WORLD_OPERATION_DONE, request_id))
+
+    def _poll_world_queue(self) -> None:
+        """Apply current world scan/decode results on the Tk event loop."""
+        while True:
+            try:
+                item = self._world_queue.get_nowait()
+            except queue.Empty:
+                break
+            if item[0] is _WORLD_OPERATION_DONE:
+                self._world_workers_pending = max(0, self._world_workers_pending - 1)
+                continue
+            kind = item[0]
+            if kind == "worlds":
+                _kind, request_id, worlds = item
+                if request_id == self._world_scan_generation:
+                    self._worlds_by_id = {world.world_id: world for world in worlds}
+                    self.world_page.set_worlds(worlds)
+            elif kind == "scan_error":
+                _kind, request_id, error = item
+                if request_id == self._world_scan_generation:
+                    self.world_page.set_scan_error(error)
+            elif kind == "decoded":
+                _kind, request_id, world_id, gvas_file, save_type, settings, json_text = item
+                if (
+                    request_id == self._world_decode_generation
+                    and world_id == self.world_page._world_var.get()
+                ):
+                    self._world_documents[world_id] = (gvas_file, save_type)
+                    self.world_page.set_decoded(settings, json_text)
+                    self._update_merge_preview()
+            elif kind == "decode_error":
+                _kind, request_id, world_id, error = item
+                if (
+                    request_id == self._world_decode_generation
+                    and world_id == self.world_page._world_var.get()
+                ):
+                    self.world_page.set_decode_error(error)
+            elif kind == "world_status":
+                _kind, request_id, world_id, message = item
+                if (
+                    request_id == self._world_decode_generation
+                    and world_id == self.world_page._world_var.get()
+                ):
+                    self.world_page.set_external_processing(message)
+            elif kind == "server_stopped":
+                _kind, request_id, world_id = item
+                if (
+                    request_id == self._world_decode_generation
+                    and world_id == self.world_page._world_var.get()
+                ):
+                    self._set_running_state(False)
+            elif kind == "pst_closed":
+                _kind, request_id, world_id, backup_path = item
+                if (
+                    request_id == self._world_decode_generation
+                    and world_id == self.world_page._world_var.get()
+                ):
+                    self.world_page.finish_external_processing(
+                        world_id,
+                        "PST closed. The backup remains available at "
+                        f"{backup_path}. PST may require manual file selection if it ignored the path argument.",
+                    )
+                    if messagebox.askyesno(
+                        "Restart PalServer",
+                        "PST has closed. Restart PalServer using the current launch mode?",
+                        parent=self,
+                    ):
+                        self._start_server_in_mode(self.mode_var.get())
+            elif kind == "pst_error":
+                _kind, request_id, world_id, error = item
+                if (
+                    request_id == self._world_decode_generation
+                    and world_id == self.world_page._world_var.get()
+                ):
+                    self._set_running_state(False)
+                    self.world_page.finish_external_processing(
+                        world_id,
+                        f"Protected inspection failed. PalServer remains stopped.\n{error}",
+                        error=True,
+                    )
+            elif kind == "local_decoded":
+                _kind, request_id, path, gvas_file = item
+                if request_id == self._world_merge_generation:
+                    self._local_world_document = (path, gvas_file)
+                    self._update_merge_preview()
+            elif kind == "local_decode_error":
+                _kind, request_id, error = item
+                if request_id == self._world_merge_generation:
+                    self._local_world_document = None
+                    self.world_page.set_local_world_error(error)
+            elif kind == "merge_saved":
+                _kind, request_id, result = item
+                if request_id == self._world_merge_generation:
+                    messagebox.showinfo(
+                        "World Merge Complete",
+                        f"Created backup: {result.backup_path}\n\nStart the server manually, then verify REST API settings.",
+                        parent=self,
+                    )
+                    self._select_world(self.world_page._world_var.get())
+            elif kind == "merge_error":
+                _kind, request_id, error = item
+                if request_id == self._world_merge_generation:
+                    messagebox.showerror("World Merge Failed", error, parent=self)
+                    self._update_merge_preview()
+        if self._world_workers_pending:
+            self._world_poll_job = self.after(100, self._poll_world_queue)
+        else:
+            self._world_poll_job = None
 
     # TODO: (Palworld 1.0) Keep the world-settings editor hidden from the main
     # window until PlM / Oodle support is complete. Re-add its button here once

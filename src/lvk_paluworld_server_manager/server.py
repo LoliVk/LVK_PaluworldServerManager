@@ -22,10 +22,11 @@ import platform
 import socket
 import subprocess
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Callable, Final
 
 #: Path to the PalServer installation inside the WSL filesystem.
 PALSERVER_PATH: Final[str] = "~/.local/share/Steam/steamapps/common/PalServer"
@@ -35,6 +36,9 @@ START_COMMAND: Final[str] = "./PalServer.sh"
 
 #: Pattern used to find the running server process so it can be stopped.
 STOP_PROCESS_PATTERN: Final[str] = "PalServer.sh"
+
+#: WSL location of the user-installed Palworld Save Tools AppImage.
+PST_APPIMAGE_PATH: Final[str] = "~/apps/pst/PalworldSaveTools-v2.3.1-linux.AppImage"
 
 #: Steam application ID for Palworld Dedicated Server.
 PALWORLD_DEDICATED_SERVER_APP_ID: Final[int] = 2394010
@@ -137,6 +141,82 @@ def stop_server() -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
     )
+
+
+def stop_server_and_wait(
+    *,
+    timeout_seconds: float = 30,
+    poll_interval_seconds: float = 0.5,
+    is_running: Callable[[], bool] | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Stop PalServer and wait until it is no longer running.
+
+    The process can disappear between the initial status check and ``pkill``;
+    that race is treated as a successful stop once the follow-up check reports
+    no running server.
+    """
+    stop_result = stop_server()
+    running_check = is_running or is_server_process_running
+    deadline = monotonic() + timeout_seconds
+    while running_check():
+        if monotonic() >= deadline:
+            raise RuntimeError(
+                f"PalServer did not stop within {timeout_seconds:g} seconds."
+            )
+        sleep(poll_interval_seconds)
+    if stop_result.returncode not in (0, 1):
+        detail = (stop_result.stderr or stop_result.stdout or "unknown error").strip()
+        raise RuntimeError(f"Failed to stop PalServer: {detail}")
+
+
+def build_pst_bash_command() -> str:
+    """Build the WSL command that launches the fixed PST AppImage path.
+
+    The selected save is supplied as ``$1`` rather than interpolated into the
+    shell source, which keeps Windows/WSL path characters out of the command.
+    """
+    relative_path = PST_APPIMAGE_PATH.removeprefix("~/")
+    return (
+        f'pst_path="$HOME/{relative_path}"; '
+        'world_path="$1"; world_path="${world_path/#\\~/$HOME}"; '
+        'if ! test -x "$pst_path"; then '
+        'echo "PST AppImage is missing or not executable: $pst_path" >&2; exit 127; fi; '
+        'exec "$pst_path" "$world_path"'
+    )
+
+
+def launch_pst(world_option_wsl_path: str, distro: str = "Ubuntu") -> None:
+    """Launch PST in WSL and wait until its GUI is closed.
+
+    PST is an external GUI.  A successful process exit only proves that it was
+    launched and closed; it does not prove that PST parsed or saved a file.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "wsl.exe",
+                "-d",
+                distro,
+                "--",
+                "bash",
+                "-lc",
+                build_pst_bash_command(),
+                "pst",
+                world_option_wsl_path,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Unable to launch PST: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "unknown error").strip()
+        raise RuntimeError(f"PST did not start successfully: {detail}")
 
 
 #: Path (within WSL) to the dedicated-server's world save directory.

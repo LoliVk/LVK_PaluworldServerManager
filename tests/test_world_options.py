@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import zipfile
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,6 +14,55 @@ from lvk_paluworld_server_manager.world_options import (
     SettingField,
     WorldSaveInfo,
 )
+
+# ---------------------------------------------------------------------------
+# decode_sav_bytes
+# ---------------------------------------------------------------------------
+
+
+def test_decode_sav_bytes_decompresses_and_reads_gvas() -> None:
+    raw_gvas = b"raw-gvas"
+    save_type = 0x31
+    expected_gvas = MagicMock()
+
+    with (
+        patch.object(
+            world_options, "decompress_sav_to_gvas", return_value=(raw_gvas, save_type)
+        ) as mock_decompress,
+        patch.object(world_options.GvasFile, "read", return_value=expected_gvas) as mock_read,
+    ):
+        result = world_options.decode_sav_bytes(b"compressed-save")
+
+    assert result == (expected_gvas, save_type)
+    mock_decompress.assert_called_once_with(b"compressed-save")
+    mock_read.assert_called_once_with(
+        raw_gvas,
+        world_options.PALWORLD_TYPE_HINTS,
+        world_options._ACTIVE_CUSTOM_PROPERTIES,
+    )
+
+
+def test_decode_sav_bytes_wraps_decompression_failure() -> None:
+    with (
+        patch.object(world_options, "decompress_sav_to_gvas", side_effect=ValueError("bad save")),
+        pytest.raises(world_options.SaveDecodeError, match="Failed to decompress save"),
+    ):
+        world_options.decode_sav_bytes(b"invalid")
+
+
+def test_decode_sav_bytes_wraps_gvas_parse_failure() -> None:
+    with (
+        patch.object(world_options, "decompress_sav_to_gvas", return_value=(b"raw", 0x31)),
+        patch.object(world_options.GvasFile, "read", side_effect=ValueError("bad gvas")),
+        pytest.raises(world_options.SaveDecodeError, match="Failed to parse save"),
+    ):
+        world_options.decode_sav_bytes(b"compressed")
+
+
+def test_decode_sav_bytes_explains_that_plm_needs_an_external_codec() -> None:
+    with pytest.raises(world_options.SaveDecodeError, match="PlM / Oodle"):
+        world_options.decode_sav_bytes(b"\x00" * 8 + b"PlM" + b"payload")
+
 
 # ---------------------------------------------------------------------------
 # find_world_saves
@@ -116,6 +167,107 @@ def test_set_setting_value_raises_when_unsupported() -> None:
     field = _float_field("exp_rate")
     with pytest.raises(world_options.ValidationError):
         world_options.set_setting_value({}, field, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# gameplay-only world merge
+# ---------------------------------------------------------------------------
+
+
+def test_merge_gameplay_properties_keeps_rest_and_admin_values_on_server() -> None:
+    server = _properties_with(
+        ExpRate=1.0,
+        AdminPassword="server-secret",
+        RESTAPIEnabled=True,
+        RESTAPIPort=8212,
+        RCONEnabled=True,
+        RCONPort=25575,
+    )
+    local = _properties_with(
+        ExpRate=3.0,
+        AdminPassword="",
+        RESTAPIEnabled=False,
+        RESTAPIPort=9999,
+    )
+
+    merged, preview = world_options.merge_gameplay_properties(server, local)
+
+    assert world_options.get_setting_value(merged, _float_field("exp_rate")) == 3.0
+    settings = merged["OptionWorldData"]["value"]["Settings"]["value"]  # type: ignore[index]
+    assert settings["AdminPassword"]["value"] == "server-secret"
+    assert settings["RESTAPIEnabled"]["value"] is True
+    assert settings["RESTAPIPort"]["value"] == 8212
+    assert "exp_rate" in preview.updated_fields
+    assert set(preview.preserved_server_fields) >= {"AdminPassword", "RESTAPIEnabled", "RESTAPIPort"}
+
+
+def test_merge_gameplay_properties_does_not_clear_missing_local_fields() -> None:
+    server = _properties_with(ExpRate=1.0, PalCaptureRate=2.0)
+    local = _properties_with(ExpRate=3.0)
+
+    merged, preview = world_options.merge_gameplay_properties(server, local)
+
+    assert world_options.get_setting_value(merged, _float_field("pal_capture_rate")) == 2.0
+    assert "pal_capture_rate" in preview.unavailable_fields
+
+
+class _VerifiedCodec:
+    name = "test-codec"
+    writer_verified = True
+
+    def __init__(self) -> None:
+        self._encoded_document: SimpleNamespace | None = None
+
+    def decode(self, _data: bytes) -> tuple[SimpleNamespace, int]:
+        assert self._encoded_document is not None
+        return deepcopy(self._encoded_document), 0x31
+
+    def encode(self, gvas_file: SimpleNamespace, _save_type: int) -> bytes:
+        self._encoded_document = deepcopy(gvas_file)
+        return b"verified-merged-save"
+
+
+def test_save_merged_world_options_refuses_unverified_codec_without_backup(tmp_path: Path) -> None:
+    world = _fake_world(tmp_path)
+    server_gvas = SimpleNamespace(properties=_properties_with(ExpRate=1.0))
+    local_gvas = SimpleNamespace(properties=_properties_with(ExpRate=3.0))
+
+    with pytest.raises(world_options.SaveEncodeError, match="not passed"):
+        world_options.save_merged_world_options(
+            world,
+            server_gvas,
+            0x31,
+            local_gvas,
+            tmp_path / "Backups",
+            is_server_running=lambda: False,
+        )
+
+    assert world.world_option_path.read_bytes() == b"original-bytes"
+    assert not (tmp_path / "Backups").exists()
+
+
+def test_save_merged_world_options_writes_verified_server_based_merge(tmp_path: Path) -> None:
+    world = _fake_world(tmp_path)
+    server_gvas = SimpleNamespace(
+        properties=_properties_with(ExpRate=1.0, AdminPassword="server-secret", RESTAPIEnabled=True)
+    )
+    local_gvas = SimpleNamespace(properties=_properties_with(ExpRate=3.0, AdminPassword=""))
+    codec = _VerifiedCodec()
+
+    result = world_options.save_merged_world_options(
+        world,
+        server_gvas,
+        0x31,
+        local_gvas,
+        tmp_path / "Backups",
+        codec=codec,
+        is_server_running=lambda: False,
+    )
+
+    assert result.backup_path.exists()
+    assert world.world_option_path.read_bytes() == b"verified-merged-save"
+    assert "exp_rate" in result.preview.updated_fields
+    assert "AdminPassword" in result.preview.preserved_server_fields
 
 
 def test_validate_setting_value_float_range() -> None:
@@ -365,7 +517,7 @@ def test_list_backup_archives_verifies_and_sorts_zip_files(tmp_path: Path) -> No
     assert archives[0].created_at == datetime(2026, 1, 3, 4, 5, 6)
     assert archives[0].verified is True
     assert archives[2].verified is False
-    assert archives[2].error == "Missing WorldOption.sav"
+    assert archives[2].error == "Missing world save file"
 
 
 def test_list_backup_archives_marks_corrupt_zip_invalid(tmp_path: Path) -> None:

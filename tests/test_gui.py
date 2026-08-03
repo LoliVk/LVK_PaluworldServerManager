@@ -10,8 +10,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lvk_paluworld_server_manager.config import AppConfig
-from lvk_paluworld_server_manager import world_options
+from lvk_paluworld_server_manager import server, world_options
 from lvk_paluworld_server_manager.gui import MainWindow
+
+
+def _widget_text(widget: tk.Misc) -> str:
+    """Collect visible text from a widget tree for structural UI assertions."""
+    parts: list[str] = []
+    try:
+        parts.append(str(widget.cget("text")))
+    except tk.TclError:
+        pass
+    for child in widget.winfo_children():
+        parts.append(_widget_text(child))
+    return "\n".join(parts)
 
 
 def _make_window(title: str = "Demo App") -> MainWindow:
@@ -46,6 +58,215 @@ def test_navigation_switches_pages_and_moves_backup_action_to_backups_page(
         assert window.backup_worlds_button.winfo_toplevel() is window
         assert window.backup_worlds_button.master is not window.dashboard_page.console_card.content
         assert all(window._navigation_icons[key] for key in window._pages)
+    finally:
+        window.destroy()
+
+
+@patch("lvk_paluworld_server_manager.gui.main_window.threading.Thread")
+def test_world_navigation_creates_design_system_world_page(
+    mock_thread_cls: MagicMock,
+) -> None:
+    from lvk_paluworld_server_manager.gui.pages import WorldPage
+
+    window = _make_window()
+
+    try:
+        window.show_page("world")
+
+        assert window._active_page == "world"
+        assert isinstance(window.world_page, WorldPage)
+        assert str(window.world_page._read_only_banner["background"]) == "#ffdad6"
+        assert str(window.world_page.refresh_button["text"]) == "REFRESHING..."
+        mock_thread_cls.assert_called()
+    finally:
+        window.destroy()
+
+
+def test_world_queue_populates_selection_and_decoded_json(tmp_path: Path) -> None:
+    from lvk_paluworld_server_manager.gui.main_window import _WORLD_OPERATION_DONE
+
+    window = _make_window()
+
+    try:
+        world_dir = tmp_path / "AAAA"
+        world_dir.mkdir()
+        world = world_options.WorldSaveInfo(
+            world_id="AAAA",
+            world_option_path=world_dir / "WorldOption.sav",
+            world_dir=world_dir,
+        )
+        window._world_scan_generation = 1
+        window._world_workers_pending = 1
+        window._world_queue.put(("worlds", 1, [world]))
+        window._world_queue.put((_WORLD_OPERATION_DONE, 1))
+        window._poll_world_queue()
+
+        assert str(window.world_page._world_combo["state"]) == "readonly"
+        assert window._worlds_by_id == {"AAAA": world}
+
+        difficulty = next(field for field in world_options.SETTING_FIELDS if field.key == "difficulty")
+        window.world_page._world_var.set("AAAA")
+        window._world_decode_generation = 1
+        window._world_workers_pending = 1
+        decoded_gvas = MagicMock()
+        window._world_queue.put(
+            ("decoded", 1, "AAAA", decoded_gvas, 0x31, [(difficulty, "Normal")], '{"ok": true}')
+        )
+        window._world_queue.put((_WORLD_OPERATION_DONE, 1))
+        window._poll_world_queue()
+
+        assert str(window.world_page._json_text["state"]) == "disabled"
+        assert '"ok": true' in window.world_page._json_text.get("1.0", tk.END)
+        assert "json" in window.world_page._section_cards
+        assert window._world_documents["AAAA"] == (decoded_gvas, 0x31)
+    finally:
+        window.destroy()
+
+
+def test_world_queue_ignores_stale_decode_and_reports_current_error() -> None:
+    from lvk_paluworld_server_manager.gui.main_window import _WORLD_OPERATION_DONE
+
+    window = _make_window()
+
+    try:
+        window.world_page._world_var.set("AAAA")
+        window._world_decode_generation = 2
+        window._world_workers_pending = 2
+        window._world_queue.put(("decoded", 1, "AAAA", MagicMock(), 0x31, [], '{"stale": true}'))
+        window._world_queue.put((_WORLD_OPERATION_DONE, 1))
+        window._world_queue.put(("decode_error", 2, "AAAA", "bad save"))
+        window._world_queue.put((_WORLD_OPERATION_DONE, 2))
+        window._poll_world_queue()
+
+        assert not hasattr(window.world_page, "_json_text")
+        assert "bad save" in str(window.world_page._details_status["text"])
+    finally:
+        window.destroy()
+
+
+def test_world_page_protects_server_settings_and_disables_unverified_merge() -> None:
+    window = _make_window()
+
+    try:
+        assert str(window.world_page.merge_button["state"]) == "disabled"
+        assert str(window.world_page.import_button["text"]) == "IMPORT LOCAL WORLD"
+        assert "SERVER SETTINGS PROTECTED" in _widget_text(window.world_page)
+        assert "SAFE GAME SETTINGS MERGE" in _widget_text(window.world_page)
+    finally:
+        window.destroy()
+
+
+def test_world_inspection_worker_backs_up_all_worlds_before_launching_pst(tmp_path: Path) -> None:
+    from lvk_paluworld_server_manager.gui.main_window import _WORLD_OPERATION_DONE
+
+    window = _make_window()
+    world_dir = tmp_path / "AAAA"
+    world_dir.mkdir()
+    world = world_options.WorldSaveInfo(
+        world_id="AAAA",
+        world_option_path=world_dir / "WorldOption.sav",
+        world_dir=world_dir,
+    )
+    backup_path = tmp_path / "Backups" / "savegames_20260802_010203.zip"
+
+    try:
+        with (
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.server.is_server_process_running",
+                return_value=False,
+            ),
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.server.get_save_games_windows_path",
+                return_value=tmp_path,
+            ),
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.world_options.backup_all_world_saves",
+                return_value=backup_path,
+            ) as mock_backup,
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.server.launch_pst"
+            ) as mock_launch,
+        ):
+            window._backup_and_launch_pst(1, world)
+
+        mock_backup.assert_called_once_with(
+            tmp_path,
+            tmp_path / "Backups",
+            is_server_running=server.is_server_process_running,
+        )
+        mock_launch.assert_called_once_with(
+            f"{server.SAVE_GAMES_PATH}/AAAA/WorldOption.sav"
+        )
+        items = [window._world_queue.get_nowait() for _ in range(5)]
+        assert items[-2] == ("pst_closed", 1, "AAAA", backup_path)
+        assert items[-1] == (_WORLD_OPERATION_DONE, 1)
+    finally:
+        window.destroy()
+
+
+def test_world_inspection_does_not_launch_pst_when_backup_fails(tmp_path: Path) -> None:
+    from lvk_paluworld_server_manager.gui.main_window import _WORLD_OPERATION_DONE
+
+    window = _make_window()
+    world_dir = tmp_path / "AAAA"
+    world_dir.mkdir()
+    world = world_options.WorldSaveInfo("AAAA", world_dir / "WorldOption.sav", world_dir)
+
+    try:
+        with (
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.server.is_server_process_running",
+                return_value=False,
+            ),
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.server.get_save_games_windows_path",
+                return_value=tmp_path,
+            ),
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.world_options.backup_all_world_saves",
+                side_effect=world_options.BackupError("archive failed"),
+            ),
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.server.launch_pst"
+            ) as mock_launch,
+        ):
+            window._backup_and_launch_pst(1, world)
+
+        mock_launch.assert_not_called()
+        assert window._world_queue.get_nowait()[0] == "world_status"
+        assert window._world_queue.get_nowait()[0] == "pst_error"
+        assert window._world_queue.get_nowait() == (_WORLD_OPERATION_DONE, 1)
+    finally:
+        window.destroy()
+
+
+def test_world_inspection_pst_close_prompts_before_restarting(tmp_path: Path) -> None:
+    from lvk_paluworld_server_manager.gui.main_window import _WORLD_OPERATION_DONE
+
+    window = _make_window()
+    world_dir = tmp_path / "AAAA"
+    world_dir.mkdir()
+    world = world_options.WorldSaveInfo("AAAA", world_dir / "WorldOption.sav", world_dir)
+
+    try:
+        window.world_page.set_worlds([world])
+        window.world_page._world_var.set("AAAA")
+        window._world_decode_generation = 1
+        window._world_workers_pending = 1
+        window._world_queue.put(("pst_closed", 1, "AAAA", tmp_path / "backup.zip"))
+        window._world_queue.put((_WORLD_OPERATION_DONE, 1))
+        with (
+            patch(
+                "lvk_paluworld_server_manager.gui.main_window.messagebox.askyesno",
+                return_value=False,
+            ) as mock_prompt,
+            patch.object(window, "_start_server_in_mode") as mock_start,
+        ):
+            window._poll_world_queue()
+
+        mock_prompt.assert_called_once()
+        mock_start.assert_not_called()
+        assert str(window.world_page._world_combo["state"]) == "readonly"
     finally:
         window.destroy()
 
@@ -518,8 +739,6 @@ def _make_world_option_dialog(parent: MainWindow) -> object:
     dialog._poll_job = None
     dialog._worlds = []
     dialog._gvas_file = None
-    dialog._save_type = None
-    dialog._field_vars = {}
     return dialog
 
 
@@ -546,13 +765,10 @@ def test_world_option_editor_reports_no_worlds_found() -> None:
         window.destroy()
 
 
-@patch("lvk_paluworld_server_manager.gui.main_window.server.is_server_process_running")
-def test_world_option_editor_save_blocked_when_server_running(
-    mock_running: MagicMock, tmp_path: object
-) -> None:
-    from lvk_paluworld_server_manager import world_options
+def test_world_option_editor_decodes_selected_world_in_background(tmp_path: object) -> None:
+    from lvk_paluworld_server_manager.gui.dialogs.world_options import _WORLD_OPTIONS_DONE
+    from lvk_paluworld_server_manager.gui.main_window import WorldOptionEditorDialog
 
-    mock_running.return_value = True
     window = _make_window()
 
     try:
@@ -566,21 +782,92 @@ def test_world_option_editor_save_blocked_when_server_running(
                 world_id="AAAA", world_option_path=world_option_path, world_dir=world_dir
             )
 
-            dialog._selected_world = world
-            dialog._gvas_file = MagicMock()
-            dialog._gvas_file.properties = {}
-            dialog._save_type = 0x31
-
-            dialog._do_save(world, {})
+            decoded_gvas = MagicMock()
+            with patch.object(
+                world_options, "decode_sav_bytes", return_value=(decoded_gvas, 0x31)
+            ) as mock_decode:
+                WorldOptionEditorDialog._decode_world(dialog, world)
 
             item = dialog._queue.get_nowait()
-            assert item[0] == "error"
-            assert "PalServer" in item[1]
-            assert world_option_path.read_bytes() == b"original"
+            assert item == ("decoded", (world, decoded_gvas, 0x31))
+            assert dialog._queue.get_nowait() is _WORLD_OPTIONS_DONE
+            mock_decode.assert_called_once_with(b"original")
         finally:
             dialog.destroy()
     finally:
         window.destroy()
+
+
+def test_world_option_editor_reports_decode_failure(tmp_path: object) -> None:
+    from lvk_paluworld_server_manager.gui.dialogs.world_options import _WORLD_OPTIONS_DONE
+    from lvk_paluworld_server_manager.gui.main_window import WorldOptionEditorDialog
+
+    window = _make_window()
+
+    try:
+        dialog = _make_world_option_dialog(window)
+        try:
+            world_dir = tmp_path / "AAAA"  # type: ignore[operator]
+            world_dir.mkdir()
+            world_option_path = world_dir / "WorldOption.sav"
+            world_option_path.write_bytes(b"invalid")
+            world = world_options.WorldSaveInfo(
+                world_id="AAAA", world_option_path=world_option_path, world_dir=world_dir
+            )
+
+            with patch.object(
+                world_options,
+                "decode_sav_bytes",
+                side_effect=world_options.SaveDecodeError("invalid save"),
+            ):
+                WorldOptionEditorDialog._decode_world(dialog, world)
+
+            kind, message = dialog._queue.get_nowait()
+            assert kind == "error"
+            assert "invalid save" in message
+            assert dialog._queue.get_nowait() is _WORLD_OPTIONS_DONE
+        finally:
+            dialog.destroy()
+    finally:
+        window.destroy()
+
+
+def test_world_option_editor_displays_decoded_world() -> None:
+    from lvk_paluworld_server_manager.gui.main_window import WorldOptionEditorDialog
+
+    window = _make_window()
+
+    try:
+        dialog = _make_world_option_dialog(window)
+        try:
+            dialog._status_label = tk.Label(dialog)
+            dialog._render_settings_form = MagicMock()
+            dialog._set_json_content = MagicMock()
+            decoded_gvas = MagicMock()
+            decoded_gvas.properties = {"OptionWorldData": {}}
+
+            with patch.object(world_options, "dump_gvas_json", return_value='{"parsed": true}'):
+                WorldOptionEditorDialog._on_decoded(
+                    dialog,
+                    (MagicMock(), decoded_gvas, 0x31),
+                )
+
+            assert dialog._gvas_file is decoded_gvas
+            dialog._render_settings_form.assert_called_once_with(decoded_gvas.properties)
+            dialog._set_json_content.assert_called_once_with('{"parsed": true}')
+            assert "Loaded successfully" in str(dialog._status_label["text"])
+        finally:
+            dialog.destroy()
+    finally:
+        window.destroy()
+
+
+def test_world_option_editor_is_read_only() -> None:
+    from lvk_paluworld_server_manager.gui.main_window import WorldOptionEditorDialog
+
+    assert not hasattr(WorldOptionEditorDialog, "_on_save")
+    assert not hasattr(WorldOptionEditorDialog, "_do_save")
+    assert not hasattr(WorldOptionEditorDialog, "_on_saved")
 
 
 def test_world_option_editor_json_tab_is_read_only() -> None:

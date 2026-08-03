@@ -5,7 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import scrolledtext, ttk
 from typing import Any
 
 from ... import server, world_options
@@ -15,17 +15,16 @@ _WORLD_OPTIONS_DONE = object()
 
 
 class WorldOptionEditorDialog(tk.Toplevel):
-    """Modal dialog for discovering, viewing, and editing ``WorldOption.sav``.
+    """Modal dialog for discovering and inspecting ``WorldOption.sav``.
 
     Follows the same worker-thread + :class:`queue.Queue` + :meth:`after`
     pattern as :class:`DiagnosticDialog`/:class:`NetworkSetupDialog` so all
-    GVAS decode/encode/backup work happens off the Tk main thread.
+    GVAS decode work happens off the Tk main thread.
 
     The dialog never guesses which world to edit: it scans the dedicated
-    server's ``SaveGames/0`` directory and lets the user choose. Saving is
-    refused whenever the server appears to be running, and every successful
-    save first creates a verified, timestamped ZIP backup of the *entire*
-    selected world directory.
+    server's ``SaveGames/0`` directory and lets the user choose. This dialog
+    is deliberately read-only until parsing has been verified with a real
+    save; it never creates backups or writes a save file.
     """
 
     def __init__(self, parent: tk.Tk) -> None:
@@ -36,10 +35,8 @@ class WorldOptionEditorDialog(tk.Toplevel):
 
         self._worlds: list[world_options.WorldSaveInfo] = []
         self._gvas_file: Any | None = None  # GvasFile once decoded
-        self._save_type: int | None = None
-        self._field_vars: dict[str, tk.Variable] = {}
 
-        self.title("編輯世界設定 / Edit World Settings")
+        self.title("檢視世界設定 / View World Settings")
         self.geometry("640x640")
         self.resizable(False, False)
         self.grab_set()
@@ -47,7 +44,7 @@ class WorldOptionEditorDialog(tk.Toplevel):
 
         tk.Label(
             self,
-            text="世界設定編輯器\nWorld Settings Editor",
+            text="世界設定檢視器\nWorld Settings Viewer",
             font=("Segoe UI", 14, "bold"),
             justify="center",
         ).pack(pady=(0, 10))
@@ -80,7 +77,7 @@ class WorldOptionEditorDialog(tk.Toplevel):
 
         warning_label = tk.Label(
             self,
-            text="⚠️ 儲存前請先停止伺服器，否則將拒絕寫入。 / Server must be stopped before saving.",
+            text="唯讀模式 / Read-only mode: saving is unavailable until real-save verification.",
             foreground="#b05000",
             font=("Segoe UI", 9),
         )
@@ -89,14 +86,13 @@ class WorldOptionEditorDialog(tk.Toplevel):
         button_frame = tk.Frame(self)
         button_frame.pack(pady=(8, 0))
 
-        self._save_button = tk.Button(
+        self._read_only_button = tk.Button(
             button_frame,
-            text="儲存 / Save",
+            text="唯讀 / Read-only",
             width=18,
             state="disabled",
-            command=self._on_save,
         )
-        self._save_button.pack(side="left", padx=4)
+        self._read_only_button.pack(side="left", padx=4)
 
         tk.Button(
             button_frame,
@@ -201,12 +197,8 @@ class WorldOptionEditorDialog(tk.Toplevel):
                 self._on_worlds_discovered(payload)
             elif kind == "error":
                 self._status_label.config(text=payload, foreground="#b00000")
-                if str(self._save_button["text"]).startswith("儲存中"):
-                    self._save_button.config(state="normal", text="儲存 / Save")
             elif kind == "decoded":
                 self._on_decoded(payload)
-            elif kind == "saved":
-                self._on_saved(payload)
 
         if done:
             self._poll_job = None
@@ -221,14 +213,13 @@ class WorldOptionEditorDialog(tk.Toplevel):
             )
             return
         self._world_combo.config(state="readonly", values=[w.world_id for w in worlds])
-        self._status_label.config(text="請選擇要編輯的世界 / Select a world to edit")
+        self._status_label.config(text="請選擇要檢視的世界 / Select a world to view")
 
     def _on_world_selected(self, _event: object = None) -> None:
         world_id = self._world_var.get()
         world = next((w for w in self._worlds if w.world_id == world_id), None)
         if world is None:
             return
-        self._save_button.config(state="disabled")
         self._status_label.config(text="正在讀取存檔... / Loading save...", foreground="#555555")
         self._ensure_queue_polling()
         threading.Thread(target=self._decode_world, args=(world,), daemon=True).start()
@@ -244,21 +235,16 @@ class WorldOptionEditorDialog(tk.Toplevel):
         self._queue.put(_WORLD_OPTIONS_DONE)
 
     def _on_decoded(self, payload: tuple[Any, Any, int]) -> None:
-        world, gvas_file, save_type = payload
-        self._selected_world = world
+        _world, gvas_file, _save_type = payload
         self._gvas_file = gvas_file
-        self._save_type = save_type
         self._render_settings_form(gvas_file.properties)
         self._set_json_content(world_options.dump_gvas_json(gvas_file))
-        self._save_button.config(state="normal")
         self._status_label.config(text="讀取成功 / Loaded successfully", foreground="#1a6e1a")
 
     def _render_settings_form(self, properties: dict[str, Any]) -> None:
         """(Re)build the grouped settings form from the decoded properties."""
         for child in self._settings_frame.winfo_children():
             child.destroy()
-        self._field_vars.clear()
-
         canvas_frame = tk.Frame(self._settings_frame)
         canvas_frame.pack(fill="both", expand=True)
 
@@ -282,85 +268,16 @@ class WorldOptionEditorDialog(tk.Toplevel):
 
                 if field.kind == "bool":
                     var: tk.Variable = tk.BooleanVar(value=bool(value))
-                    tk.Checkbutton(row, variable=var).pack(side="left")
+                    tk.Checkbutton(row, variable=var, state="disabled").pack(side="left")
                 elif field.kind == "enum":
                     var = tk.StringVar(value=str(value))
                     ttk.Combobox(
                         row,
                         textvariable=var,
                         values=list(field.enum_choices),
-                        state="readonly",
+                        state="disabled",
                         width=20,
                     ).pack(side="left")
                 else:
                     var = tk.StringVar(value=str(value))
-                    tk.Entry(row, textvariable=var, width=20).pack(side="left")
-
-                self._field_vars[field.key] = var
-
-    # ── Save ────────────────────────────────────────────────────────────────
-
-    def _on_save(self) -> None:
-        if self._gvas_file is None or self._save_type is None:
-            return
-        world = getattr(self, "_selected_world", None)
-        if world is None:
-            return
-
-        confirmed = messagebox.askyesno(
-            "確認儲存 / Confirm Save",
-            "儲存前將建立完整世界備份，並拒絕在伺服器執行中寫入。\n是否繼續？\n\n"
-            "A full world backup will be created before saving, and saving will be "
-            "refused while the server is running. Continue?",
-            parent=self,
-        )
-        if not confirmed:
-            return
-
-        changes: dict[str, object] = {}
-        for key, var in self._field_vars.items():
-            changes[key] = var.get()
-
-        self._save_button.config(state="disabled", text="儲存中... / Saving...")
-        self._ensure_queue_polling()
-        threading.Thread(
-            target=self._do_save, args=(world, changes), daemon=True
-        ).start()
-
-    def _do_save(self, world: world_options.WorldSaveInfo, changes: dict[str, object]) -> None:
-        """Background thread: validate, back up, and write the save file."""
-        try:
-            backups_root = world.world_dir.parent.parent / "Backups"
-            assert self._gvas_file is not None
-            assert self._save_type is not None
-            result = world_options.save_world_options(
-                world,
-                self._gvas_file,
-                self._save_type,
-                changes,
-                backups_root,
-                is_server_running=server.is_server_process_running,
-            )
-            self._queue.put(("saved", result))
-        except world_options.WorldOptionsError as exc:
-            self._queue.put(("error", str(exc)))
-            self._queue.put(_WORLD_OPTIONS_DONE)
-            return
-        except Exception as exc:  # noqa: BLE001
-            self._queue.put(("error", f"儲存失敗 / Save failed: {exc}"))
-        self._queue.put(_WORLD_OPTIONS_DONE)
-
-    def _on_saved(self, result: world_options.SaveWorldOptionsResult) -> None:
-        self._save_button.config(state="normal", text="儲存 / Save")
-        self._status_label.config(text="儲存成功 / Saved successfully", foreground="#1a6e1a")
-        messagebox.showinfo(
-            "儲存成功 / Save Successful",
-            f"世界設定已儲存。\n備份位置：{result.backup_path}\n\n"
-            f"World settings saved.\nBackup: {result.backup_path}",
-            parent=self,
-        )
-        world = getattr(self, "_selected_world", None)
-        if world is not None:
-            self._ensure_queue_polling()
-            threading.Thread(target=self._decode_world, args=(world,), daemon=True).start()
-
+                    tk.Entry(row, textvariable=var, width=20, state="disabled").pack(side="left")

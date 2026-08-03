@@ -37,10 +37,12 @@ This project provides lightweight Windows-based management for a Palworld server
   - **更新伺服器 / Update Server** 按鈕會在 PalServer 執行時拒絕更新；停止後，會在 WSL 內透過 SteamCMD 執行 `app_update 2394010 validate`，並將結果顯示於程式日誌。
 
 - Verified world-save backups / 已驗證的世界存檔備份
-  - The dedicated **Backups** page creates a ZIP backup of every dedicated-server world save, excluding existing backups, and verifies that the archive contains each world's `WorldOption.sav`.
+  - The dedicated **Backups** page scans the real ZIP archive inventory and creates timestamped snapshots of dedicated-server worlds. A single world is backed up directly; when multiple worlds are found, the user can choose the worlds to include.
+  - Backup discovery accepts worlds containing `WorldOption.sav` or `Level.sav`, excludes existing backup directories, and verifies archive health before showing an archive as verified.
   - It refuses to create a backup while PalServer is running, helping avoid inconsistent save data.
   - Shows the completed archive path and provides an **Open Backup Folder** button to open its `Backups` folder in File Explorer.
-  - 專用的 **Backups** 頁面可建立所有專用伺服器世界存檔的 ZIP 備份，排除既有備份檔，並驗證封存檔包含各世界的 `WorldOption.sav`。
+  - 專用的 **Backups** 頁面會掃描實際 ZIP 封存清冊，並建立含時間戳記的專用伺服器世界快照。只有一個世界時會直接備份；找到多個世界時，使用者可選擇要納入的世界。
+  - 備份探索接受包含 `WorldOption.sav` 或 `Level.sav` 的世界、排除既有備份目錄，並會先驗證封存健康狀態才顯示為已驗證。
   - PalServer 執行期間會拒絕建立備份，以避免產生不一致的存檔資料。
   - 備份完成後會顯示封存檔路徑，並提供 **開啟備份資料夾 / Open Backup Folder** 按鈕，可在檔案總管開啟 `Backups` 資料夾。
 
@@ -59,9 +61,15 @@ This project provides lightweight Windows-based management for a Palworld server
   - Start/Stop button state is updated automatically based on the current server status.
   - 啟動/停止按鈕會根據伺服器目前狀態自動切換。
 
-- Planned pages / 準備中的頁面
-  - **World** and **Stats** are visible in the navigation but currently show a "feature is being prepared" placeholder. They do not yet provide world management or telemetry features.
-  - **World** 與 **Stats** 已顯示在導覽列中，但目前僅顯示「功能準備中」頁面，尚未提供世界管理或遙測功能。
+- World workflow in development / 開發中的世界工作流
+  - The **World** page is under active development. It scans WSL worlds, supports importing a local `WorldOption.sav`, and provides a protected inspection workflow that creates a verified backup before launching Palworld Save Tools (PST).
+  - Server credentials and service settings, including Admin Password, REST API, and RCON values, are preserved from the WSL world during the game-settings merge preview.
+  - **World** 頁面正在積極開發中。它可掃描 WSL 世界、匯入本機 `WorldOption.sav`，並提供保護性檢視流程：先建立已驗證備份，再啟動 Palworld Save Tools（PST）。
+  - 遊戲設定合併預覽會保留 WSL 世界的伺服器憑證與服務設定，包括管理員密碼、REST API 與 RCON 值。
+
+- Planned page / 準備中的頁面
+  - **Stats** remains a "feature is being prepared" placeholder and does not yet provide telemetry features.
+  - **Stats** 目前仍為「功能準備中」的預留頁面，尚未提供遙測功能。
 
 ## Installation / 安裝
 
@@ -94,12 +102,12 @@ python -m pip install -e .[dev]
   - 包含診斷、網路設定檢查，以及防火牆/`socat` 輔助函式。
 
 - `src/lvk_paluworld_server_manager/gui/main_window.py`
-  - Coordinates the multi-page GUI, navigation, worker queues, server controls, backups, and diagnostic information.
-  - 協調多頁式 GUI、導覽、背景工作佇列、伺服器控制、備份與診斷資訊。
+  - Coordinates the multi-page GUI, navigation, worker queues, server controls, backups, world workflow, and diagnostic information.
+  - 協調多頁式 GUI、導覽、背景工作佇列、伺服器控制、備份、世界工作流與診斷資訊。
 
 - `src/lvk_paluworld_server_manager/gui/pages.py`
-  - Defines the Dashboard, Backups, and reusable placeholder page layouts.
-  - 定義 Dashboard、Backups 與可重用的準備中頁面版面。
+  - Defines the Dashboard, Backups, World, and reusable placeholder page layouts.
+  - 定義 Dashboard、Backups、World 與可重用的準備中頁面版面。
 
 - `src/lvk_paluworld_server_manager/gui/widgets.py`
   - Provides custom Tkinter UI components used by the page layouts and navigation.
@@ -110,8 +118,8 @@ python -m pip install -e .[dev]
   - 包含備份完成、診斷、網路設定，以及保留中的世界設定對話框實作。
 
 - `src/lvk_paluworld_server_manager/world_options.py`
-  - World-save discovery, backup validation, and retained world-settings editing support.
-  - 世界存檔探索、備份驗證，以及保留中的世界設定編輯支援。
+  - World-save discovery, verified backup inventory and snapshots, safe setting-merge helpers, and codec write safeguards.
+  - 世界存檔探索、已驗證備份清冊與快照、安全設定合併輔助功能，以及編碼器寫入保護。
 
 - `src/lvk_paluworld_server_manager/cli.py`
   - Command-line entry point for launching the GUI.
@@ -206,15 +214,23 @@ For Internet players, configure the router to forward **UDP 8211** to the Window
 
 ### Backing Up World Saves / 備份世界存檔
 
-Open the **Backups** page and click **「備份所有世界存檔 / Backup All World Saves」** to create a timestamped ZIP archive in the dedicated-server save directory's `Backups` folder. When the backup completes, use **「開啟備份資料夾 / Open Backup Folder」** to open that folder in File Explorer. Stop PalServer before starting the backup; the application refuses the operation while the server is running.
+Open the **Backups** page and click **+ CREATE SNAPSHOT** to create a timestamped ZIP archive in the dedicated-server save directory's `Backups` folder. If more than one eligible world is found, choose the worlds to include; the selection defaults to all discovered worlds. The archive ledger is populated from the real ZIP files and marks an archive as verified only after archive validation succeeds. When the backup completes, use **「開啟備份資料夾 / Open Backup Folder」** to open that folder in File Explorer. Stop PalServer before starting the backup; the application refuses the operation while the server is running.
 
-開啟 **Backups** 頁面後，點擊 **「備份所有世界存檔 / Backup All World Saves」**，即可在專用伺服器存檔目錄的 `Backups` 資料夾建立含時間戳記的 ZIP 封存檔。備份完成後，可使用 **「開啟備份資料夾 / Open Backup Folder」** 在檔案總管開啟該資料夾。開始備份前請先停止 PalServer；伺服器執行時，應用程式會拒絕此操作。
+開啟 **Backups** 頁面後，點擊 **+ CREATE SNAPSHOT**，即可在專用伺服器存檔目錄的 `Backups` 資料夾建立含時間戳記的 ZIP 封存檔。若找到一個以上符合條件的世界，可選擇要納入的世界；選取預設會包含所有已探索世界。封存清冊會根據實際 ZIP 檔案建立，且只有通過封存驗證後才會標示為已驗證。備份完成後，可使用 **「開啟備份資料夾 / Open Backup Folder」** 在檔案總管開啟該資料夾。開始備份前請先停止 PalServer；伺服器執行時，應用程式會拒絕此操作。
 
 ### World and Stats Status / World 與 Stats 狀態
 
-The **World** and **Stats** navigation pages are placeholders while their features are being prepared. The world-settings editor implementation is retained internally, but it is not exposed through the current main-window navigation.
+The **World** page is in development and is not yet a fully supported world-management feature. It can scan WSL worlds, import a local `WorldOption.sav`, and prepare a protected PST inspection by stopping PalServer when approved and creating a verified all-world backup first. Launching or closing PST does not prove that PST parsed or saved a file.
 
-**World** 與 **Stats** 導覽頁面目前為功能準備中的預留頁面。世界設定編輯器的實作仍保留於內部程式碼中，但目前主視窗導覽不會提供入口。
+The game-settings merge is intentionally disabled with the default codec: its writer has not been verified against the current save format. A merge becomes available only when a verified writer is supplied and PalServer is stopped. The merge preserves server-side Admin Password, REST API, and RCON values; it never copies password values from the local world.
+
+**Stats** remains a placeholder while telemetry features are being prepared.
+
+**World** 頁面正在開發中，尚不是完整支援的世界管理功能。它可掃描 WSL 世界、匯入本機 `WorldOption.sav`，並在使用者同意後停止 PalServer、先建立已驗證的全世界備份，再準備受保護的 PST 檢視流程。PST 成功啟動或關閉不代表它已成功解析或儲存檔案。
+
+遊戲設定合併會刻意以預設編碼器停用：該編碼器的寫入功能尚未針對目前存檔格式完成驗證。只有提供已驗證的寫入器且 PalServer 已停止時，合併才可使用。合併會保留伺服器端的管理員密碼、REST API 與 RCON 值，絕不從本機世界複製密碼值。
+
+**Stats** 目前仍為預留頁面，遙測功能尚在準備中。
 
 ## Testing / 測試
 
@@ -225,6 +241,10 @@ Run the test suite with:
 ```bash
 pytest -q
 ```
+
+The current test suite includes unit and GUI coverage for archive validation, selectable snapshots, WSL/PST launch helpers, world-page queue handling, and safe merge guards. The staged World workflow is documented as in development because complete runtime verification with the required WSL, PST, and Palworld save dependencies has not yet been performed.
+
+目前測試套件包含封存驗證、可選快照、WSL/PST 啟動輔助函式、World 頁面佇列處理與安全合併保護的單元及 GUI 測試。由於尚未在具備所需 WSL、PST 與 Palworld 存檔相依條件的環境完成完整執行驗證，暫存中的 World 工作流在本文件中標示為開發中。
 
 For linting and static checks, run:
 

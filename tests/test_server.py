@@ -88,6 +88,66 @@ def test_stop_server_runs_pkill_via_wsl(mock_run: MagicMock) -> None:
     assert kwargs["text"] is True
 
 
+@patch("lvk_paluworld_server_manager.server.stop_server")
+def test_stop_server_and_wait_returns_when_server_exits(mock_stop: MagicMock) -> None:
+    mock_stop.return_value = _completed(0)
+
+    server.stop_server_and_wait(is_running=lambda: False)
+
+    mock_stop.assert_called_once_with()
+
+
+@patch("lvk_paluworld_server_manager.server.stop_server")
+def test_stop_server_and_wait_raises_after_timeout(mock_stop: MagicMock) -> None:
+    mock_stop.return_value = _completed(0)
+    clock = iter((0.0, 31.0))
+
+    with pytest.raises(RuntimeError, match="did not stop within 30 seconds"):
+        server.stop_server_and_wait(
+            is_running=lambda: True,
+            monotonic=lambda: next(clock),
+        )
+
+
+@patch("lvk_paluworld_server_manager.server.stop_server")
+def test_stop_server_and_wait_reports_stop_failure(mock_stop: MagicMock) -> None:
+    mock_stop.return_value = _completed(2, "stop output")
+    mock_stop.return_value.stderr = "permission denied"
+
+    with pytest.raises(RuntimeError, match="permission denied"):
+        server.stop_server_and_wait(is_running=lambda: False)
+
+
+def test_build_pst_bash_command_uses_fixed_appimage_and_positional_save_path() -> None:
+    command = server.build_pst_bash_command()
+
+    assert "$HOME/apps/pst/PalworldSaveTools-v2.3.1-linux.AppImage" in command
+    assert 'world_path="$1"' in command
+    assert 'exec "$pst_path" "$world_path"' in command
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_launch_pst_runs_fixed_appimage_inside_wsl(mock_run: MagicMock) -> None:
+    mock_run.return_value = _completed(0)
+
+    server.launch_pst("~/server/WorldOption.sav")
+
+    args, kwargs = mock_run.call_args
+    assert args[0][:7] == ["wsl.exe", "-d", "Ubuntu", "--", "bash", "-lc", server.build_pst_bash_command()]
+    assert args[0][-2:] == ["pst", "~/server/WorldOption.sav"]
+    assert kwargs["capture_output"] is True
+
+
+@patch("lvk_paluworld_server_manager.server.subprocess.run")
+def test_launch_pst_raises_when_appimage_fails(mock_run: MagicMock) -> None:
+    result = _completed(127)
+    result.stderr = "PST AppImage is missing"
+    mock_run.return_value = result
+
+    with pytest.raises(RuntimeError, match="PST AppImage is missing"):
+        server.launch_pst("~/server/WorldOption.sav")
+
+
 def _completed(returncode: int, stdout: str = "") -> MagicMock:
     result = MagicMock()
     result.returncode = returncode

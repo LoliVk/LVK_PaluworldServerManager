@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from palworld_save_tools.gvas import GvasFile
 from palworld_save_tools.json_tools import CustomEncoder
@@ -88,6 +88,59 @@ class ValidationError(WorldOptionsError):
         super().__init__("; ".join(f"{k}: {v}" for k, v in errors.items()))
 
 
+class WorldOptionCodec(Protocol):
+    """Codec boundary for compressed Palworld ``WorldOption.sav`` files.
+
+    A codec may support a save format for inspection without being approved
+    for writes.  The UI must only enable a merge when ``writer_verified`` is
+    true; this prevents a successful decode from being mistaken for a safe
+    round-trip guarantee.
+    """
+
+    name: str
+    writer_verified: bool
+
+    def decode(self, data: bytes) -> tuple[GvasFile, int]: ...
+
+    def encode(self, gvas_file: GvasFile, save_type: int) -> bytes: ...
+
+
+class PalworldSaveToolsCodec:
+    """The bundled legacy ``PlZ`` codec supplied by palworld-save-tools.
+
+    Version 0.24.0 cannot decode the current Oodle/``PlM`` format.  It is
+    deliberately not write-verified for the World merge workflow: enabling
+    that requires a real PlM source save to pass a server-start round trip.
+    """
+
+    name = "palworld-save-tools 0.24.0 (PlZ)"
+    writer_verified = False
+
+    def decode(self, data: bytes) -> tuple[GvasFile, int]:
+        if len(data) >= 11 and data[8:11] == b"PlM":
+            raise SaveDecodeError(
+                "此存檔使用 PlM / Oodle 格式；目前已安裝的 codec 無法解析。"
+                " / This save uses PlM / Oodle and needs a verified external codec."
+            )
+        try:
+            raw_gvas, save_type = decompress_sav_to_gvas(data)
+        except Exception as exc:
+            raise SaveDecodeError(f"無法解壓縮存檔 / Failed to decompress save: {exc}") from exc
+        try:
+            return GvasFile.read(raw_gvas, PALWORLD_TYPE_HINTS, _ACTIVE_CUSTOM_PROPERTIES), save_type
+        except Exception as exc:
+            raise SaveDecodeError(f"無法解析存檔內容 / Failed to parse save: {exc}") from exc
+
+    def encode(self, gvas_file: GvasFile, save_type: int) -> bytes:
+        try:
+            return compress_gvas_to_sav(gvas_file.write(_ACTIVE_CUSTOM_PROPERTIES), save_type)
+        except Exception as exc:
+            raise SaveEncodeError(f"無法重新編碼存檔 / Failed to encode save: {exc}") from exc
+
+
+DEFAULT_WORLD_OPTION_CODEC: WorldOptionCodec = PalworldSaveToolsCodec()
+
+
 @dataclass(frozen=True)
 class WorldSaveInfo:
     """A discovered dedicated-server world save directory."""
@@ -130,6 +183,20 @@ class SettingField:
     enum_choices: tuple[str, ...] = ()
     minimum: float | None = None
     maximum: float | None = None
+
+
+@dataclass(frozen=True)
+class WorldMergePreview:
+    """Read-only summary of a proposed local-world to server-world merge."""
+
+    updated_fields: tuple[str, ...]
+    unavailable_fields: tuple[str, ...]
+    preserved_server_fields: tuple[str, ...]
+
+    @property
+    def has_unknown_conflicts(self) -> bool:
+        """Known-field merges never copy unknown properties from the source."""
+        return False
 
 
 # Ordered, path-based descriptors for the first-wave editable settings.
@@ -361,7 +428,11 @@ def list_backup_worlds(save_games_root: Path) -> list[BackupWorldInfo]:
 # ---------------------------------------------------------------------------
 
 
-def decode_sav_bytes(data: bytes) -> tuple[GvasFile, int]:
+def decode_sav_bytes(
+    data: bytes,
+    *,
+    codec: WorldOptionCodec = DEFAULT_WORLD_OPTION_CODEC,
+) -> tuple[GvasFile, int]:
     """Decompress and parse raw ``.sav`` bytes into a :class:`GvasFile`.
 
     Returns:
@@ -372,28 +443,21 @@ def decode_sav_bytes(data: bytes) -> tuple[GvasFile, int]:
     Raises:
         SaveDecodeError: If the bytes cannot be decompressed or parsed.
     """
-    try:
-        raw_gvas, save_type = decompress_sav_to_gvas(data)
-    except Exception as exc:
-        raise SaveDecodeError(f"無法解壓縮存檔 / Failed to decompress save: {exc}") from exc
-    try:
-        gvas_file = GvasFile.read(raw_gvas, PALWORLD_TYPE_HINTS, _ACTIVE_CUSTOM_PROPERTIES)
-    except Exception as exc:
-        raise SaveDecodeError(f"無法解析存檔內容 / Failed to parse save: {exc}") from exc
-    return gvas_file, save_type
+    return codec.decode(data)
 
 
-def encode_gvas(gvas_file: GvasFile, save_type: int) -> bytes:
+def encode_gvas(
+    gvas_file: GvasFile,
+    save_type: int,
+    *,
+    codec: WorldOptionCodec = DEFAULT_WORLD_OPTION_CODEC,
+) -> bytes:
     """Re-encode a :class:`GvasFile` back into compressed ``.sav`` bytes.
 
     Raises:
         SaveEncodeError: If encoding or compression fails.
     """
-    try:
-        raw = gvas_file.write(_ACTIVE_CUSTOM_PROPERTIES)
-        return compress_gvas_to_sav(raw, save_type)
-    except Exception as exc:
-        raise SaveEncodeError(f"無法重新編碼存檔 / Failed to encode save: {exc}") from exc
+    return codec.encode(gvas_file, save_type)
 
 
 def dump_gvas_json(gvas_file: GvasFile) -> str:
@@ -529,6 +593,70 @@ def apply_settings(properties: dict[str, Any], changes: dict[str, Any]) -> None:
 
     for field, value in validated:
         set_setting_value(properties, field, value)
+
+
+# These values are server-owned.  They are deliberately never copied from a
+# local/co-op WorldOption.sav during a gameplay-settings merge.
+SERVER_PRESERVED_PROPERTY_KEYS: tuple[str, ...] = (
+    "AdminPassword",
+    "RESTAPIEnabled",
+    "RESTAPIPort",
+    "RCONEnabled",
+    "RCONPort",
+)
+
+
+def _setting_node(properties: dict[str, Any], field: SettingField) -> dict[str, Any] | None:
+    node = _walk(properties, field.property_path)
+    return node if isinstance(node, dict) and "value" in node else None
+
+
+def merge_gameplay_properties(
+    server_properties: dict[str, Any],
+    local_properties: dict[str, Any],
+) -> tuple[dict[str, Any], WorldMergePreview]:
+    """Overlay known gameplay fields from a local world onto server properties.
+
+    The server document is copied first, so every unrecognised property and
+    every server-owned credential remains byte-for-byte equivalent in the
+    decoded property tree.  Only entries in ``SETTING_FIELDS`` are eligible
+    for replacement.
+    """
+    merged = copy.deepcopy(server_properties)
+    updated: list[str] = []
+    unavailable: list[str] = []
+    for field in SETTING_FIELDS:
+        source = _setting_node(local_properties, field)
+        target = _setting_node(merged, field)
+        if source is None or target is None:
+            unavailable.append(field.key)
+            continue
+        if target["value"] != source["value"]:
+            target["value"] = copy.deepcopy(source["value"])
+            updated.append(field.key)
+
+    settings_values = _walk(server_properties, _SETTINGS_ROOT)
+    preserved = tuple(
+        key for key in SERVER_PRESERVED_PROPERTY_KEYS if isinstance(settings_values, dict) and key in settings_values
+    )
+    return merged, WorldMergePreview(
+        updated_fields=tuple(updated),
+        unavailable_fields=tuple(unavailable),
+        preserved_server_fields=preserved,
+    )
+
+
+def merge_gameplay_gvas(
+    server_gvas: GvasFile,
+    local_gvas: GvasFile,
+) -> tuple[GvasFile, WorldMergePreview]:
+    """Return a server-based GVAS document with only gameplay fields overlaid."""
+    merged = copy.deepcopy(server_gvas)
+    merged.properties, preview = merge_gameplay_properties(
+        server_gvas.properties,
+        local_gvas.properties,
+    )
+    return merged, preview
 
 
 # ---------------------------------------------------------------------------
@@ -778,6 +906,91 @@ class SaveWorldOptionsResult:
 
     backup_path: Path
     sav_path: Path
+
+
+@dataclass(frozen=True)
+class SaveWorldMergeResult(SaveWorldOptionsResult):
+    """Result of a successful server-based gameplay settings merge."""
+
+    preview: WorldMergePreview
+
+
+def save_merged_world_options(
+    world: WorldSaveInfo,
+    server_gvas: GvasFile,
+    server_save_type: int,
+    local_gvas: GvasFile,
+    backups_root: Path,
+    *,
+    codec: WorldOptionCodec = DEFAULT_WORLD_OPTION_CODEC,
+    is_server_running: Callable[[], bool],
+) -> SaveWorldMergeResult:
+    """Back up and atomically write a verified gameplay-only world merge.
+
+    No write is allowed until the chosen codec has passed an explicit real-save
+    round-trip verification.  This is intentionally stricter than the legacy
+    editor's PlZ-only write path because a PlM source must not be silently
+    converted before the target server has been tested.
+    """
+    if not codec.writer_verified:
+        raise SaveEncodeError(
+            "尚未驗證此 codec 可安全寫回 WorldOption.sav；合併已停用。"
+            " / This codec has not passed WorldOption.sav write verification."
+        )
+    if is_server_running():
+        raise ServerRunningError(
+            "PalServer 仍在執行中，請先停止伺服器再合併設定。"
+            " / PalServer is still running; stop it before merging settings."
+        )
+
+    merged_gvas, preview = merge_gameplay_gvas(server_gvas, local_gvas)
+    if preview.has_unknown_conflicts:
+        raise ValidationError({"merge": "未知欄位衝突 / Unknown property conflict"})
+    backup_path = create_world_backup(world.world_dir, backups_root)
+
+    if is_server_running():
+        raise ServerRunningError(
+            "PalServer 仍在執行中，請先停止伺服器再合併設定。"
+            " / PalServer is still running; stop it before merging settings."
+        )
+    encoded = encode_gvas(merged_gvas, server_save_type, codec=codec)
+    try:
+        verified_gvas, _verified_type = decode_sav_bytes(encoded, codec=codec)
+    except WorldOptionsError as exc:
+        raise SaveEncodeError(
+            f"合併檔案無法重新解析 / Merged save failed round-trip verification: {exc}"
+        ) from exc
+    _verified_properties, verified_preview = merge_gameplay_properties(
+        verified_gvas.properties,
+        local_gvas.properties,
+    )
+    if verified_preview.updated_fields:
+        raise SaveEncodeError(
+            "合併檔案驗證失敗 / Merged gameplay settings did not persist after encoding"
+        )
+
+    tmp_path = world.world_option_path.with_name(world.world_option_path.name + ".tmp")
+    try:
+        tmp_path.write_bytes(encoded)
+        if is_server_running():
+            raise ServerRunningError(
+                "PalServer 在寫入前啟動，已中止合併。"
+                " / PalServer started before the merge could be written."
+            )
+        tmp_path.replace(world.world_option_path)
+    except OSError as exc:
+        raise SaveEncodeError(f"寫入合併存檔失敗 / Failed to write merged save: {exc}") from exc
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+    return SaveWorldMergeResult(
+        backup_path=backup_path,
+        sav_path=world.world_option_path,
+        preview=preview,
+    )
 
 
 def save_world_options(
